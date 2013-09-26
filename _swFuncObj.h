@@ -1,4 +1,4 @@
-//This file is a function library amassed from the sw files
+//This file is an attempt to objectify _swFunc.h
 
 #include "model.h"
 #include <string>
