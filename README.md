@@ -1,2 +1,0 @@
-independent-study
-=================
