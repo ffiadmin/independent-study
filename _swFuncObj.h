@@ -1,4 +1,4 @@
-//This file is an attempt to objectify _swFunc.h
+//This file is a function library amassed from the sw files
 
 #include "model.h"
 #include <string>
@@ -11,23 +11,101 @@
 #include <fstream>
 #include "gsl_sf_gamma.h"
 
-static double fB(int i, int l1, int l2, double px, double ax, double bx, 
-		 int r, double g){
-  return binomial_prefactor(i,l1,l2,px-ax,px-bx)*Bfunc(i,r,g);
-}
+/*
+====================================
+	Programmer defined types
+====================================
+*/
 
-static double Bfunc(int i, int r, double g){
-  return fact_ratio2(i,r)*pow(4*g,(double)(r-i));
-}
-
-struct Len{
+struct Data{
 	int		len, l, m, n, i;
 	
 	double	*exps, *coefs, *norms,
 			x, y, z;	
 };
 
-static double contr_coulomb(Len& a, Len& b, Len& c, Len& d){
+struct PQ{ double xp, yp, zp, xq, yq, zq; };
+
+/*
+====================================
+	Helper Functions
+====================================
+*/
+
+static int fact(int n){
+  if (n <= 1) return 1;
+  return n*fact(n-1);
+}
+static int binomial(int a, int b){return fact(a)/(fact(b)*fact(a-b));}
+
+static double binomial_prefactor(int s, int ia, int ib, double xpa, double xpb){
+	int t;
+	double sum=0;
+	for (t=0; t<s+1; t++)
+		if ((s-ia <= t) && (t <= ib)) 
+			sum +=	binomial(ia,s-t)*
+					binomial(ib,t)*
+					pow(xpa,(double)(ia-s+t))*
+					pow(xpb,(double)(ib-t));
+  return sum;
+}
+
+static int fact_ratio(int a, int b){ return fact(a)/fact(b)/fact(a-2*b); }
+
+static double Bfunc(int i, int r, double g){
+  return fact_ratio(i,r)*pow(4*g,(double)(r-i));
+}
+
+static double fB(int i, int l1, int l2, double px, double ax, double bx, 
+		 int r, double g){
+  return binomial_prefactor(i,l1,l2,px-ax,px-bx)*Bfunc(i,r,g);
+}
+
+static double *B_array(Data& a, Data& b, Data& c, Data& d, PQ& pqs){
+
+	double g1 = a.exps[a.i]+b.exps[b.i];
+	double g2 = c.exps[c.i]+d.exps[d.i];
+	double delta = (1./g1+1./g2)/4.;	
+	
+	int Imax = a.l+b.l+c.l+d.l+1;
+	
+	double *B = (double *)malloc(Imax*sizeof(double));
+	
+	for (int i=0; i<Imax; i++) B[i] = 0.;	
+	
+	for (int i1=0; i1<a.l+b.l+1; i1++)
+		for (int i2=0; i2 < c.l+d.l+1; i2++)
+			for (int r1=0; r1< i1/2+1; r1++)
+				for (int r2=0; r2< i2/2+1; r2++)
+					for (int u=0; u<(i1+i2)/2-r1-r2+1; u++){
+						int I = i1+i2-2*(r1+r2)-u;
+						B[I] += 							 
+							fB(i1,a.l,b.l,pqs.xp,a.x,b.x,r1,g1)*
+							pow(-1.0,i2)*
+							fB(i2,c.l,d.l,pqs.xq,c.x,d.x,r2,g2)*
+							pow(-1.0,(u))*
+							fact_ratio(i1+i2-2*(r1+r2),u)*
+							pow(pqs.xq-pqs.xp,I)/
+							pow(delta,I);
+							
+							/*B_term(
+								i1,i2,r1,r2,u,
+								a.l,b.l,c.l,d.l,
+								p,a,b,q,c,d,
+								g1,g2,delta*/							
+	  }
+
+  return B;
+}
+
+
+
+/*
+====================================
+	Calling functions
+====================================
+*/
+static double contr_coulomb(Data& a, Data& b, Data& c, Data& d){
 
   int i,j,k,l;
   double ret = 0, incr = 0;
@@ -43,32 +121,28 @@ static double contr_coulomb(Len& a, Len& b, Len& c, Len& d){
   return ret;
 }
 
-struct PQ{ double xp, yp, zp, xq, yq, zq; };
+static double coulomb_repulsion(Data& a, Data& b, Data& c, Data& d){
 
-//coulumb_repulsion object rewrite
-static double coulomb_repulsion(Len& a, Len& b, Len& c, Len& d){
-
-  double rab2, rcd2,rpq2,xp,yp,zp,xq,yq,zq,gamma1,gamma2,delta,sum;
-  double *Bx, *By, *Bz;
-  int I,J,K;
-
+  double rab2, rcd2,rpq2;
   rab2 = dist2(a,b);
   rcd2 = dist2(c,d);
 
-  PQ pqs = product_center_1D_all(a,b,c,d);
+  PQ pqs;
+  product_center_1D_all(a,b,c,d, pqs);
+  rpq2 = dist2(pqs.xp,pqs.yp,pqs.zp,pqs.xq,pqs.yq,pqs.zq);
 
-  //======================================================//
+  double** ret = B_array(a,b,c,d,pqs);
 
-  rpq2 = dist2(xp,yp,zp,xq,yq,zq);
-  gamma1 = alphaa+alphab;
-  gamma2 = alphac+alphad;
-  delta = (1./gamma1+1./gamma2)/4.;
+  double *Bx = ret[0];
+  double *By = ret[1];
+  double *Bz = ret[2];
 
-  Bx = B_array(la,lb,lc,ld,xp,xa,xb,xq,xc,xd,gamma1,gamma2,delta);
-  By = B_array(ma,mb,mc,md,yp,ya,yb,yq,yc,yd,gamma1,gamma2,delta);
-  Bz = B_array(na,nb,nc,nd,zp,za,zb,zq,zc,zd,gamma1,gamma2,delta);
+  //return l, m, and n for x, y, and z respectively
+  /*Bx = B_array(a,b,c,d);
+  By = B_array(ma,mb,mc,md,yp,a.y,b.y,yq,c.y,d.y);
+  Bz = B_array(na,nb,nc,nd,zp,a.z,b.z,zq,c.z,d.z);*/
 
-  sum = 0.;
+  double sum = 0.;   int I,J,K;
   for (I=0; I<la+lb+lc+ld+1;I++)
     for (J=0; J<ma+mb+mc+md+1;J++)
       for (K=0; K<na+nb+nc+nd+1;K++)
@@ -79,31 +153,20 @@ static double coulomb_repulsion(Len& a, Len& b, Len& c, Len& d){
   free(Bz);  
   
   return 2.*pow(M_PI,2.5)/(gamma1*gamma2*sqrt((double)(gamma1+gamma2)))
-    *exp(-alphaa*alphab*rab2/gamma1) 
-    *exp(-alphac*alphad*rcd2/gamma2)*sum*norma*normb*normc*normd;
+    *exp(-a.exps[a.i]*b.exps[b.i]*rab2/gamma1) 
+    *exp(-c.exps[c.i]*d.exps[d.i]*rcd2/gamma2)*sum*norma*normb*normc*normd;
 }
 
-static double *B_array(int l1, int l2, int l3, int l4, double p, double a,
-		double b, double q, double c, double d,
-		double g1, double g2, double delta){
-  int Imax,i1,i2,r1,r2,u,I,i;
-  double *B;
-  Imax = l1+l2+l3+l4+1;
-  B = (double *)malloc(Imax*sizeof(double));
-  for (i=0; i<Imax; i++) B[i] = 0.;
-
-  for (i1=0; i1<l1+l2+1; i1++)
-    for (i2=0; i2<l3+l4+1; i2++)
-      for (r1=0; r1<i1/2+1; r1++)
-	for (r2=0; r2<i2/2+1; r2++)
-	  for (u=0; u<(i1+i2)/2-r1-r2+1; u++){
-	    I = i1+i2-2*(r1+r2)-u;
-	    B[I] = B[I] + B_term(i1,i2,r1,r2,u,l1,l2,l3,l4,
-				 p,a,b,q,c,d,g1,g2,delta);
-	  }
-
-  return B;
+//object rewrite
+static PQ& product_center_1D_all(Data& a, Data& b, Data& c, Data& d, PQ& ret){  
+  ret.xp = (a.norms[a.i]*a.x + b.norms[b.i]*b.x)/(a.norms[a.i] + b.norms[b.i]);
+  ret.yp = (a.norms[a.i]*a.y + b.norms[b.i]*b.y)/(a.norms[a.i] + b.norms[b.i]);
+  ret.zp = (a.norms[a.i]*a.z + b.norms[b.i]*b.z)/(a.norms[a.i] + b.norms[b.i]);
+  ret.xq = (c.norms[c.i]*c.x + d.norms[d.i]*d.x)/(c.norms[c.i] + d.norms[d.i]);
+  ret.xq = (c.norms[c.i]*c.y + d.norms[d.i]*d.y)/(c.norms[c.i] + d.norms[d.i]);
+  ret.xq = (c.norms[c.i]*c.z + d.norms[d.i]*d.z)/(c.norms[c.i] + d.norms[d.i]);
 }
+
 
 static double Model_pot(int l1, int l2, int m1, int m2, int n1, int n2, double alp1, double alp2){
 
@@ -195,62 +258,51 @@ static double DELTA(double k, double a, double c){
 }
 
 
-static double B_term(int i1, int i2, int r1, int r2, int u, int l1, int l2,
-	      int l3, int l4, double Px, double Ax, double Bx,
-	      double Qx, double Cx, double Dx, double gamma1,
-	      double gamma2, double delta){
-  /* THO eq. 2.22 */
-  return fB(i1,l1,l2,Px,Ax,Bx,r1,gamma1)
-    *pow(-1,(double)(i2))*fB(i2,l3,l4,Qx,Cx,Dx,r2,gamma2)
-    *pow(-1,(double)(u))*fact_ratio2(i1+i2-2*(r1+r2),u)
-    *pow(Qx-Px,(double)(i1+i2-2*(r1+r2)-2*u))
-    /pow(delta,(double)(i1+i2-2*(r1+r2)-u));
-}
 
 
 static double kinetic(double alpha1, int l1, int m1, int n1,
-	       double xa, double ya, double za,
+	       double a.x, double a.y, double a.z,
 	       double alpha2, int l2, int m2, int n2,
-	       double xb, double yb, double zb){
+	       double b.x, double b.y, double b.z){
 
   double term0,term1,term2;
   term0 = alpha2*(2*(l2+m2+n2)+3)*
-    overlap(alpha1,l1,m1,n1,xa,ya,za,
-		   alpha2,l2,m2,n2,xb,yb,zb);
+    overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
+		   alpha2,l2,m2,n2,b.x,b.y,b.z);
   term1 = -2*pow(alpha2,(double)(2))*
-    (overlap(alpha1,l1,m1,n1,xa,ya,za,
-		    alpha2,l2+2,m2,n2,xb,yb,zb)
-     + overlap(alpha1,l1,m1,n1,xa,ya,za,
-		      alpha2,l2,m2+2,n2,xb,yb,zb)
-     + overlap(alpha1,l1,m1,n1,xa,ya,za,
-		      alpha2,l2,m2,n2+2,xb,yb,zb));
-  term2 = -0.5*(l2*(l2-1)*overlap(alpha1,l1,m1,n1,xa,ya,za,
-					 alpha2,l2-2,m2,n2,xb,yb,zb) +
-		m2*(m2-1)*overlap(alpha1,l1,m1,n1,xa,ya,za,
-					 alpha2,l2,m2-2,n2,xb,yb,zb) +
-		n2*(n2-1)*overlap(alpha1,l1,m1,n1,xa,ya,za,
-					 alpha2,l2,m2,n2-2,xb,yb,zb));
+    (overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
+		    alpha2,l2+2,m2,n2,b.x,b.y,b.z)
+     + overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
+		      alpha2,l2,m2+2,n2,b.x,b.y,b.z)
+     + overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
+		      alpha2,l2,m2,n2+2,b.x,b.y,b.z));
+  term2 = -0.5*(l2*(l2-1)*overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
+					 alpha2,l2-2,m2,n2,b.x,b.y,b.z) +
+		m2*(m2-1)*overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
+					 alpha2,l2,m2-2,n2,b.x,b.y,b.z) +
+		n2*(n2-1)*overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
+					 alpha2,l2,m2,n2-2,b.x,b.y,b.z));
   return term0+term1+term2;
 }
 
 static double overlap(double alpha1, int l1, int m1, int n1,
-		      double xa, double ya, double za,
+		      double a.x, double a.y, double a.z,
 		      double alpha2, int l2, int m2, int n2,
-		      double xb, double yb, double zb){
+		      double b.x, double b.y, double b.z){
   /*Taken from THO eq. 2.12*/
   double rab2,gamma,xp,yp,zp,pre,wx,wy,wz;
 
-  rab2 = dist2(xa,ya,za,xb,yb,zb);
+  rab2 = dist2(a.x,a.y,a.z,b.x,b.y,b.z);
   gamma = alpha1+alpha2;
-   xp = product_center_1D(alpha1,xa,alpha2,xb);
-  yp = product_center_1D(alpha1,ya,alpha2,yb);
-  zp = product_center_1D(alpha1,za,alpha2,zb);
+   xp = product_center_1D(alpha1,a.x,alpha2,b.x);
+  yp = product_center_1D(alpha1,a.y,alpha2,b.y);
+  zp = product_center_1D(alpha1,a.z,alpha2,b.z);
 
   pre = pow(M_PI/gamma,1.5)*exp(-alpha1*alpha2*rab2/gamma);
 
-  wx = overlap_1D(l1,l2,xp-xa,xp-xb,gamma);
-  wy = overlap_1D(m1,m2,yp-ya,yp-yb,gamma);
-  wz = overlap_1D(n1,n2,zp-za,zp-zb,gamma);
+  wx = overlap_1D(l1,l2,xp-a.x,xp-b.x,gamma);
+  wy = overlap_1D(m1,m2,yp-a.y,yp-b.y,gamma);
+  wz = overlap_1D(n1,n2,zp-a.z,zp-b.z,gamma);
   return pre*wx*wy*wz;
 }
 
@@ -327,12 +379,6 @@ static double *A_array(int l1, int l2, double PA, double PB,
   return A;
 }
 
-
-static int fact(int n){
-  if (n <= 1) return 1;
-  return n*fact(n-1);
-}
-
 static int fact2(int n){ /* double factorial function = 1*3*5*...*n */
   if (n <= 1) return 1;
   return n*fact2(n-2);
@@ -344,7 +390,7 @@ static double dist2(double x1, double y1, double z1,
 }
 
 //object rewrite
-static double dist2(Len& a, Len& b){
+static double dist2(Data& a, Data& b){
   return (a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z);
 }
 
@@ -354,20 +400,9 @@ static double dist(double x1, double y1, double z1,
 }
 
 //object rewrite
-static double dist(Len& a, Len& b){
+static double dist(Data& a, Data& b){
   return sqrt(dist2(a, b));
 }
-
-static double binomial_prefactor(int s, int ia, int ib, double xpa, double xpb){
-  int t;
-  double sum=0.;
-  for (t=0; t<s+1; t++)
-    if ((s-ia <= t) && (t <= ib)) 
-      sum += binomial(ia,s-t)*binomial(ib,t)*pow(xpa,(double)(ia-s+t))*pow(xpb,(double)(ib-t));
-  return sum;
-} 
-
-static int binomial(int a, int b){return fact(a)/(fact(b)*fact(a-b));}
 
 static double Fgamma(double m, double x){
   double val;
@@ -462,13 +497,6 @@ static int ijkl2intindex(int i, int j, int k, int l){
     kl = tmp;
   }
   return ij*(ij+1)/2+kl;
-}
-
-static int fact_ratio2(int a, int b){ return fact(a)/fact(b)/fact(a-2*b); }
-
-//object rewrite
-static double product_center_1D_all(Len& a, Len& b, Len& c, Len& d){
-  return (a.norms[a.i]*a.x + b.norms[b.i]*b.x)/(a.norms[a.i] + b.norms[b.i]);
 }
 
 static double three_center_1D(double xi, int ai, double alphai,
