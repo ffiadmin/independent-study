@@ -20,11 +20,11 @@
 struct Data{
 	int		len, l, m, n, i;
 	
-	double	*exps, *coefs, *norms,
-			x, y, z;	
-};
+	double	exp, coef, norm,
+			x, y, z;			
+} a, b, c, d;
 
-struct PQ{ double xp, yp, zp, xq, yq, zq; };
+struct PQ{ double xp, yp, zp, xq, yq, zq; } pqs;
 
 /*
 ====================================
@@ -32,10 +32,13 @@ struct PQ{ double xp, yp, zp, xq, yq, zq; };
 ====================================
 */
 
+// computes factorial recursively
 static int fact(int n){
   if (n <= 1) return 1;
   return n*fact(n-1);
 }
+
+//computes binomial? (What is this?)
 static int binomial(int a, int b){return fact(a)/(fact(b)*fact(a-b));}
 
 static double binomial_prefactor(int s, int ia, int ib, double xpa, double xpb){
@@ -52,27 +55,16 @@ static double binomial_prefactor(int s, int ia, int ib, double xpa, double xpb){
 
 static int fact_ratio(int a, int b){ return fact(a)/fact(b)/fact(a-2*b); }
 
-static double Bfunc(int i, int r, double g){
-  return fact_ratio(i,r)*pow(4*g,(double)(r-i));
-}
+static double Bfunc(int i, int r, double g){ return fact_ratio(i,r)*pow(4*g,(double)(r-i)); }
 
 static double fB(int i, int l1, int l2, double px, double ax, double bx, 
 		 int r, double g){
   return binomial_prefactor(i,l1,l2,px-ax,px-bx)*Bfunc(i,r,g);
 }
 
-static double *B_array(Data& a, Data& b, Data& c, Data& d, PQ& pqs){
+void fill_array(double* B, double g1, double g2){
+	double delta = (1./g1+1./g2)/4;
 
-	double g1 = a.exps[a.i]+b.exps[b.i];
-	double g2 = c.exps[c.i]+d.exps[d.i];
-	double delta = (1./g1+1./g2)/4.;	
-	
-	int Imax = a.l+b.l+c.l+d.l+1;
-	
-	double *B = (double *)malloc(Imax*sizeof(double));
-	
-	for (int i=0; i<Imax; i++) B[i] = 0.;	
-	
 	for (int i1=0; i1<a.l+b.l+1; i1++)
 		for (int i2=0; i2 < c.l+d.l+1; i2++)
 			for (int r1=0; r1< i1/2+1; r1++)
@@ -87,25 +79,40 @@ static double *B_array(Data& a, Data& b, Data& c, Data& d, PQ& pqs){
 							fact_ratio(i1+i2-2*(r1+r2),u)*
 							pow(pqs.xq-pqs.xp,I)/
 							pow(delta,I);
-							
-							/*B_term(
-								i1,i2,r1,r2,u,
-								a.l,b.l,c.l,d.l,
-								p,a,b,q,c,d,
-								g1,g2,delta*/							
-	  }
-
-  return B;
+					}
 }
 
+static double** B_arrays(){
 
+	double g1 = a.exp + b.exp;
+	double g2 = c.exp + d.exp;		
+	
+	int Imax = a.l+b.l+c.l+d.l+1;
+
+	double** ret = new double*[3];	
+	double *Bx = new double[Imax];
+	double *By = new double[Imax];
+	double *Bz = new double[Imax];
+
+	for (int i=0; i<Imax; i++) Bx[i] = By[i] = Bz[i] = 0;
+
+	fill_array(Bx, g1, g2);
+	fill_array(By, g1, g2);
+	fill_array(Bz, g1, g2);
+
+	ret[0] = Bx; ret[1] = By; ret[2] = Bz;
+	
+  return ret;
+}
 
 /*
 ====================================
 	Calling functions
 ====================================
 */
-static double contr_coulomb(Data& a, Data& b, Data& c, Data& d){
+
+//WARNING! DOES NOT RECEIVE ALONG DATA FOR xa-xd ANYMORE
+static double contr_coulomb(int lena, int lenb, int lenc, int lend){
 
   int i,j,k,l;
   double ret = 0, incr = 0;
@@ -113,48 +120,56 @@ static double contr_coulomb(Data& a, Data& b, Data& c, Data& d){
   for (i=0; i<a.len; i++)
 	  for (j=0; j<b.len; j++)
 		  for (k=0; k<c.len; k++)
-			  for (l=0; l<d.len; l++){
-				  a.i = i; b.i = j; c.i = k; d.i = l;
+			  for (l=0; l<d.len; l++){				  
+				  a.exp = aexps[i]; b.exp = bexps[j]; c.exp = cexps[k]; d.exp = dexps[l];
+				  a.norm = anorms[i]; b.norm = bnorms[j]; c.norm = cnorms[k]; d.norm = dnorms[l];
 				  incr = coulomb_repulsion(a,b,c,d);
 				  ret += a.coefs[i]*b.coefs[j]*c.coefs[k]*d.coefs[l]*incr;
 	}
   return ret;
 }
 
-static double coulomb_repulsion(Data& a, Data& b, Data& c, Data& d){
+static double coulomb_repulsion(){
 
   double rab2, rcd2,rpq2;
   rab2 = dist2(a,b);
   rcd2 = dist2(c,d);
 
-  PQ pqs;
   product_center_1D_all(a,b,c,d, pqs);
   rpq2 = dist2(pqs.xp,pqs.yp,pqs.zp,pqs.xq,pqs.yq,pqs.zq);
 
-  double** ret = B_array(a,b,c,d,pqs);
+  double** ret = B_arrays();
 
   double *Bx = ret[0];
   double *By = ret[1];
-  double *Bz = ret[2];
+  double *Bz = ret[2];  
 
-  //return l, m, and n for x, y, and z respectively
-  /*Bx = B_array(a,b,c,d);
-  By = B_array(ma,mb,mc,md,yp,a.y,b.y,yq,c.y,d.y);
-  Bz = B_array(na,nb,nc,nd,zp,a.z,b.z,zq,c.z,d.z);*/
+  double g1 = a.exp + b.exp;
+  double g2 = c.exp +d.exp;
+  double delta = (1./g1+1./g2)/4.;
 
-  double sum = 0.;   int I,J,K;
-  for (I=0; I<la+lb+lc+ld+1;I++)
-    for (J=0; J<ma+mb+mc+md+1;J++)
-      for (K=0; K<na+nb+nc+nd+1;K++)
-	sum += Bx[I]*By[J]*Bz[K]*Fgamma(I+J+K,0.25*rpq2/delta);
+  double sum = 0;
+  for (int i=0; i<la+lb+lc+ld+1; i++)
+	  for (int j=0; j<ma+mb+mc+md+1; j++)
+		  for (int k=0; k<na+nb+nc+nd+1; k++)
+			  sum += Bx[i]*By[j]*Bz[k]*Fgamma(i+j+k,0.25*rpq2/delta);
 
   free(Bx);
   free(By);
   free(Bz);  
   
-  return 2.*pow(M_PI,2.5)/(gamma1*gamma2*sqrt((double)(gamma1+gamma2)))
-    *exp(-a.exps[a.i]*b.exps[b.i]*rab2/gamma1) 
-    *exp(-c.exps[c.i]*d.exps[d.i]*rcd2/gamma2)*sum*norma*normb*normc*normd;
+  return 
+	2*pow(M_PI,2.5)/
+	(g1*g2*sqrt(g1+g2))*
+	exp(	
+		-a.exp*
+		b.exp*
+		rab2/g1)*
+	exp(	
+		-c.exp*
+		d.exp*
+		rcd2/g2)*
+	sum * a.norm * b.norm * c.norm * d.norm;
 }
 
 //object rewrite
