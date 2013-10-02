@@ -1,4 +1,4 @@
-//This file is a function library amassed from the sw files
+//This file is a modified function library amassed from the sw files
 
 #include "model.h"
 #include <string>
@@ -28,9 +28,39 @@ struct PQ{ double xp, yp, zp, xq, yq, zq; } pqs;
 
 /*
 ====================================
-	Helper Functions
+	Simple Helper Functions
 ====================================
 */
+
+static int fact2(int n){ /* double factorial function = 1*3*5*...*n */
+  if (n <= 1) return 1;
+  return n*fact2(n-2);
+}
+
+static double dist2(double x1, double y1, double z1,
+		    double x2, double y2, double z2){
+  return (x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2);
+}
+
+//object rewrite
+static double dist2(Data& a, Data& b){
+  return (a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z);
+}
+
+static double dist(double x1, double y1, double z1,
+		   double x2, double y2, double z2){
+  return sqrt(dist2(x1,y1,z1,x2,y2,z2));
+}
+
+//object rewrite
+static double dist(Data& a, Data& b){
+  return sqrt(dist2(a, b));
+}
+
+static double product_center_1D(double alphaa, double xa, 
+			 double alphab, double xb){
+  return (alphaa*xa+alphab*xb)/(alphaa+alphab);
+}
 
 // computes factorial recursively
 static int fact(int n){
@@ -40,6 +70,23 @@ static int fact(int n){
 
 //computes binomial? (What is this?)
 static int binomial(int a, int b){return fact(a)/(fact(b)*fact(a-b));}
+
+//computes commonly used ratio between factorials
+static int fact_ratio(int a, int b){ return fact(a)/fact(b)/fact(a-2*b); }
+
+static double Bfunc(int i, int r, double g){ return fact_ratio(i,r)*pow(4*g,(double)(r-i)); }
+
+static double fB(int i, int l1, int l2, double px, double ax, double bx, 
+		 int r, double g){
+  return binomial_prefactor(i,l1,l2,px-ax,px-bx)*Bfunc(i,r,g);
+}
+
+
+/*
+====================================
+	Calling functions
+====================================
+*/
 
 static double binomial_prefactor(int s, int ia, int ib, double xpa, double xpb){
 	int t;
@@ -53,14 +100,6 @@ static double binomial_prefactor(int s, int ia, int ib, double xpa, double xpb){
   return sum;
 }
 
-static int fact_ratio(int a, int b){ return fact(a)/fact(b)/fact(a-2*b); }
-
-static double Bfunc(int i, int r, double g){ return fact_ratio(i,r)*pow(4*g,(double)(r-i)); }
-
-static double fB(int i, int l1, int l2, double px, double ax, double bx, 
-		 int r, double g){
-  return binomial_prefactor(i,l1,l2,px-ax,px-bx)*Bfunc(i,r,g);
-}
 
 void fill_array(double* B, double g1, double g2){
 	double delta = (1./g1+1./g2)/4;
@@ -105,13 +144,8 @@ static double** B_arrays(){
   return ret;
 }
 
-/*
-====================================
-	Calling functions
-====================================
-*/
-
 //WARNING! DOES NOT RECEIVE ALONG DATA FOR xa-xd ANYMORE
+//Must account for array pointers outside of this function
 static double contr_coulomb(int lena, int lenb, int lenc, int lend){
 
   int i,j,k,l;
@@ -149,9 +183,9 @@ static double coulomb_repulsion(){
   double delta = (1./g1+1./g2)/4.;
 
   double sum = 0;
-  for (int i=0; i<la+lb+lc+ld+1; i++)
-	  for (int j=0; j<ma+mb+mc+md+1; j++)
-		  for (int k=0; k<na+nb+nc+nd+1; k++)
+  for (int i=0; i<a.l+b.l+c.l+d.l+1; i++)
+	  for (int j=0; j<a.m+b.m+c.m+d.m+1; j++)
+		  for (int k=0; k<a.n+b.n+c.n+d.n+1; k++)
 			  sum += Bx[i]*By[j]*Bz[k]*Fgamma(i+j+k,0.25*rpq2/delta);
 
   free(Bx);
@@ -174,16 +208,16 @@ static double coulomb_repulsion(){
 
 //object rewrite
 static PQ& product_center_1D_all(Data& a, Data& b, Data& c, Data& d, PQ& ret){  
-  ret.xp = (a.norms[a.i]*a.x + b.norms[b.i]*b.x)/(a.norms[a.i] + b.norms[b.i]);
-  ret.yp = (a.norms[a.i]*a.y + b.norms[b.i]*b.y)/(a.norms[a.i] + b.norms[b.i]);
-  ret.zp = (a.norms[a.i]*a.z + b.norms[b.i]*b.z)/(a.norms[a.i] + b.norms[b.i]);
-  ret.xq = (c.norms[c.i]*c.x + d.norms[d.i]*d.x)/(c.norms[c.i] + d.norms[d.i]);
-  ret.xq = (c.norms[c.i]*c.y + d.norms[d.i]*d.y)/(c.norms[c.i] + d.norms[d.i]);
-  ret.xq = (c.norms[c.i]*c.z + d.norms[d.i]*d.z)/(c.norms[c.i] + d.norms[d.i]);
+  ret.xp = (a.norm*a.x + b.norm*b.x)/(a.norm + b.norm);
+  ret.yp = (a.norm*a.y + b.norm*b.y)/(a.norm + b.norm);
+  ret.zp = (a.norm*a.z + b.norm*b.z)/(a.norm + b.norm);
+  ret.xq = (c.norm*c.x + d.norm*d.x)/(c.norm + d.norm);
+  ret.xq = (c.norm*c.y + d.norm*d.y)/(c.norm + d.norm);
+  ret.xq = (c.norm*c.z + d.norm*d.z)/(c.norm + d.norm);
 }
 
 
-static double Model_pot(int l1, int l2, int m1, int m2, int n1, int n2, double alp1, double alp2){
+static double Model_pot(double alp1, double alp2){
 
   	double answer;
 	double alp = alp1 + alp2;
@@ -202,76 +236,57 @@ static double Zeta(double x1, double x2, int l1, int l2, double alpha1, double a
 
 // Calculate integrals over CAP per Cederbaum & Santra
 	double Total = 0.0;
-	double t1,t2,t3,t4,t5,t6,t7,t8;
+	
 	for(int rho=0; rho <= l1; rho++){
-		for (int sigma=0; sigma<=l2; sigma++){
-              //     cout << rho << "  rho  "  <<sigma << "  sigma"  << endl;
-		 	t1 = binomial(l1,rho)*binomial(l2,sigma);
-   		        t2 = product_center_1D(alpha1,x1,alpha2,x2);
-   		        t3 = pow((t2-x1),(double)(l1-rho));
-   		        t4 = pow((t2-x2),(double)(l1-sigma));
-
-//			cout << rho << "  rho  " << sigma << "  sigma" <<endl;
-//			cout << t1 << "  " << "t1" << endl;
-//			cout << t2 << "  " << "t2" << endl;
-//			cout << t3 << "  " << "t3" << endl;
-//			cout << t4 << "  " << "t4" << endl;
-
-                        double Iterm = 0.0;
+		for (int sigma=0; sigma<=l2; sigma++){             
+		 	double t1 = binomial(l1,rho)*binomial(l2,sigma);
+			double t2 = product_center_1D(alpha1,x1,alpha2,x2);
+			double t3 = pow((t2-x1),(double)(l1-rho));
+			double t4 = pow((t2-x2),(double)(l1-sigma));
+			
+			double Iterm = 0.0;
 
 			for (int tau=0; tau<=npower; tau++){
-                                double kappa = (double)(rho+sigma);
-                                double kaptau = kappa+(double)tau;
-				t5 = kaptau + 1.0;
-                                t5 =-0.5*t5;
-   				t6=pow(-1.0,(double)(npower-tau))*binomial(npower,tau)*pow(alpsum,t5);
-                                t7= pow(-1.0,(kappa))*pow((c+t2),(double)(npower-tau));
-//			cout << t7 << "  " << "t7" << tau << "  tau" << endl;
+				double	kappa = (double)(rho+sigma);
+				double	kaptau = kappa+(double)tau;
 
-				t7 = t7*DELTA(kaptau,alpsum,c+t2);
-                                t8= pow((c-t2),(double)(npower-tau))*DELTA(kaptau,alpsum,c-t2);
-				Iterm = Iterm+t6*(t7+t8);
-//			cout << t5 << "  " << "t5" << tau << "  tau" <<endl;
-//			cout << t6 << "  " << "t6  " << alpsum << "  alpsum" <<  endl;
-//			cout << t7 << "  " << "t7" << tau << "  tau" << endl;
-//			cout << t8 << "  " << "t8" << tau << "  tau" <<endl;
-//			cout << Iterm << "  " << "Iterm" << tau << "  tau" <<endl;
+				double t5 = (kaptau + 1.0)*(-0.5);				
+
+   				double t6 = pow(-1.0,(double)(npower-tau))*
+					binomial(npower,tau)*
+					pow(alpsum,t5);
+
+				double t7 = pow(-1.0,(kappa))*pow((c+t2),(double)(npower-tau))*
+					delta_func(kaptau,alpsum,c+t2);
+
+				double t8= pow((c-t2),(double)(npower-tau))*
+					delta_func(kaptau,alpsum,c-t2);
+				
+				Iterm += t6*(t7+t8);
 			}
 
 			Iterm = 0.5*Iterm;
-      			Total = Total + t1*t3*t4*Iterm;
+      		Total += t1*t3*t4*Iterm;
 		}
 	}
 
 	return Total;
 }
 
-static double DELTA(double k, double a, double c){
+static double delta_func(double k, double a, double c){
 
-//        cout << a << "  a  " << c << "  c  " <<endl;
-	double t1,t2,t3,t4,t5,t6;
+ 	double t1 = 0.5*(k+1.0);
+	double t2 = a*c*c;
+	double t3 = gsl_sf_gamma(t1);
+	double t4 = gsl_sf_gamma_inc_P(t1,t2) * t3;	
 
- 	t1 = 0.5*(k+1.0);
-	t2 = a*c*c;
-	t3 = gsl_sf_gamma(t1);
-	t4 = gsl_sf_gamma_inc_P(t1,t2);
-//         cout << t4 << "  t4" <<endl;
-        t4 = t4*t3;
-//        cout << "in delta" << endl;
-//	cout << t1 <<  "  "  << t2 << "  " << t3 << "  " << t4 << endl;
-	if (c<0){
-		 t5=pow(-1.0,k+1.0);
-	}
-	else{
-		t5=1.0;
-	}
+	if (c<0) t5=pow(-1.0,k+1.0);	
+	else t5=1.0;	
 
-	t6=    t3-t4*t5;
-//        cout << t5 << "t5 in delta" <<endl;
-//        cout << t6 << "t6 in delta" <<endl;
-        return t6;
+	t6 = t3-t4*t5;
+	
+	return t6;
 }
-
 
 
 
@@ -280,23 +295,25 @@ static double kinetic(double alpha1, int l1, int m1, int n1,
 	       double alpha2, int l2, int m2, int n2,
 	       double b.x, double b.y, double b.z){
 
-  double term0,term1,term2;
-  term0 = alpha2*(2*(l2+m2+n2)+3)*
-    overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
-		   alpha2,l2,m2,n2,b.x,b.y,b.z);
-  term1 = -2*pow(alpha2,(double)(2))*
-    (overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
-		    alpha2,l2+2,m2,n2,b.x,b.y,b.z)
-     + overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
-		      alpha2,l2,m2+2,n2,b.x,b.y,b.z)
-     + overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
-		      alpha2,l2,m2,n2+2,b.x,b.y,b.z));
-  term2 = -0.5*(l2*(l2-1)*overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
-					 alpha2,l2-2,m2,n2,b.x,b.y,b.z) +
-		m2*(m2-1)*overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
-					 alpha2,l2,m2-2,n2,b.x,b.y,b.z) +
-		n2*(n2-1)*overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,
-					 alpha2,l2,m2,n2-2,b.x,b.y,b.z));
+  
+  double term0 =	
+			alpha2*(2*(l2+m2+n2)+3)*
+			overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,alpha2,l2,m2,n2,b.x,b.y,b.z);
+
+  double term1 =	
+			-2*pow(alpha2,(double)(2))*
+			(overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,alpha2,l2+2,m2,n2,b.x,b.y,b.z)+ 
+			overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,alpha2,l2,m2+2,n2,b.x,b.y,b.z)+ 
+			overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,alpha2,l2,m2,n2+2,b.x,b.y,b.z));
+
+  double term2 =	
+			-0.5*(l2*(l2-1)*
+			overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,alpha2,l2-2,m2,n2,b.x,b.y,b.z)+
+			m2*(m2-1)*
+			overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,alpha2,l2,m2-2,n2,b.x,b.y,b.z)+
+			n2*(n2-1)*
+			overlap(alpha1,l1,m1,n1,a.x,a.y,a.z,alpha2,l2,m2,n2-2,b.x,b.y,b.z));
+
   return term0+term1+term2;
 }
 
@@ -309,7 +326,7 @@ static double overlap(double alpha1, int l1, int m1, int n1,
 
   rab2 = dist2(a.x,a.y,a.z,b.x,b.y,b.z);
   gamma = alpha1+alpha2;
-   xp = product_center_1D(alpha1,a.x,alpha2,b.x);
+  xp = product_center_1D(alpha1,a.x,alpha2,b.x);
   yp = product_center_1D(alpha1,a.y,alpha2,b.y);
   zp = product_center_1D(alpha1,a.z,alpha2,b.z);
 
@@ -321,15 +338,13 @@ static double overlap(double alpha1, int l1, int m1, int n1,
   return pre*wx*wy*wz;
 }
 
-static double overlap_1D(int l1, int l2, double PAx,
-			 double PBx, double gamma){
+static double overlap_1D(int l1, int l2, double PAx, double PBx, double gamma){
   /*Taken from THO eq. 2.12*/
-  int i;
-  double sum;
-  sum = 0.;
-  for (i=0; i<(1+floor(0.5*(l1+l2))); i++)
-    sum += binomial_prefactor(2*i,l1,l2,PAx,PBx)* 
-      fact2(2*i-1)/pow(2*gamma,(double)(i));
+
+  double sum = 0.;
+  for (int i=0; i<(1+floor(0.5*(l1+l2))); i++)
+	  sum += binomial_prefactor(2*i,l1,l2,PAx,PBx)*
+	  fact2(2*i-1)/pow(2*gamma,(double)(i));
   return sum;
 }
     
@@ -357,23 +372,33 @@ static double nuclear_attraction(double x1, double y1, double z1, double norm1,
 
   sum = 0.;
   for (I=0; I<l1+l2+1; I++)
-    for (J=0; J<m1+m2+1; J++)
-      for (K=0; K<n1+n2+1; K++)
-	sum += Ax[I]*Ay[J]*Az[K]*Fgamma(I+J+K,rcp2*gamma);
+	  for (J=0; J<m1+m2+1; J++)
+		  for (K=0; K<n1+n2+1; K++)
+			  sum += Ax[I]*Ay[J]*Az[K]*Fgamma(I+J+K,rcp2*gamma);
 
   free(Ax);
   free(Ay);
   free(Az);
-  return -norm1*norm2*
-    2*M_PI/gamma*exp(-alpha1*alpha2*rab2/gamma)*sum;
+
+  return	-norm1*norm2*
+			2*M_PI/gamma*
+			exp(-alpha1*alpha2*rab2/gamma)*
+			sum;
 }
     
 static double A_term(int i, int r, int u, int l1, int l2,
 		     double PAx, double PBx, double CPx, double gamma){
   /* THO eq. 2.18 */
-  return pow(-1,(double)(i))*binomial_prefactor(i,l1,l2,PAx,PBx)*
-    pow(-1,(double)(u))*fact(i)*pow(CPx,(double)(i-2*r-2*u))*
-    pow(0.25/gamma,(double)(r+u))/fact(r)/fact(u)/fact(i-2*r-2*u);
+  return	
+		pow(-1,(double)(i))*
+		binomial_prefactor(i,l1,l2,PAx,PBx)*
+		pow(-1,(double)(u))*
+		fact(i)*
+		pow(CPx,(double)(i-2*r-2*u))*
+		pow(0.25/gamma,(double)(r+u))/
+		fact(r)/
+		fact(u)/
+		fact(i-2*r-2*u);
 }
 
 static double *A_array(int l1, int l2, double PA, double PB,
@@ -385,132 +410,114 @@ static double *A_array(int l1, int l2, double PA, double PB,
   Imax = l1+l2+1;
   A = (double *)malloc(Imax*sizeof(double));
   for (i=0; i<Imax; i++) A[i] = 0.;
+  
   for (i=0; i<Imax; i++)
-    for (r=0; r<floor((double)(i/2))+1;r++)
-      for (u=0; u<floor((i-2*r)/2.)+1; u++){
-	I = i-2*r-u;
-	A[I] += A_term(i,r,u,l1,l2,PA,PB,CP,g);
-      }
+	  for (r=0; r<floor((double)(i/2))+1;r++)
+		  for (u=0; u<floor((i-2*r)/2.)+1; u++){
+			  I = i-2*r-u;
+			  A[I] += A_term(i,r,u,l1,l2,PA,PB,CP,g);
+		  }
   return A;
 }
 
-static int fact2(int n){ /* double factorial function = 1*3*5*...*n */
-  if (n <= 1) return 1;
-  return n*fact2(n-2);
-}
 
-static double dist2(double x1, double y1, double z1,
-		    double x2, double y2, double z2){
-  return (x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2);
-}
-
-//object rewrite
-static double dist2(Data& a, Data& b){
-  return (a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z);
-}
-
-static double dist(double x1, double y1, double z1,
-		   double x2, double y2, double z2){
-  return sqrt(dist2(x1,y1,z1,x2,y2,z2));
-}
-
-//object rewrite
-static double dist(Data& a, Data& b){
-  return sqrt(dist2(a, b));
-}
 
 static double Fgamma(double m, double x){
-  double val;
-  if (fabs(x) < SMALL) x = SMALL;
-  val = gamm_inc(m+0.5,x);
-  /* if (val < SMALL) return 0.; */ /* Gives a bug for D orbitals. */
-  return 0.5*pow(x,-m-0.5)*val; 
+	double val;
+	if (fabs(x) < SMALL) x = SMALL;
+	val = gamm_inc(m+0.5,x);
+	return 0.5*pow(x,-m-0.5)*val; 
 }
 
 static double gamm_inc(double a, double x){ /* Taken from NR routine gammap */
-  double gamser,gammcf,gln;
-  
-  assert (x >= 0.);
-  assert (a > 0.);
-  if (x < (a+1.0)) {
-    gser(&gamser,a,x,&gln);
-    return exp(gln)*gamser;
-  } else {
+	
+	double gamser,gammcf,gln;
+	
+	assert(x >= 0);
+	assert(a > 0);
+	
+	if (x < (a+1.0)) {
+		gser(&gamser,a,x,&gln);
+		return exp(gln)*gamser;
+	}
+
     gcf(&gammcf,a,x,&gln);
-    return exp(gln)*(1.0-gammcf);
-  }
+    return exp(gln)*(1.0-gammcf);  
 }
  
 static void gser(double *gamser, double a, double x, double *gln){
-  int n;
-  double sum,del,ap;
-
-  *gln=lgamma(a);
-  if (x <= 0.0) {
-    assert(x>=0.);
-    *gamser=0.0;
-    return;
-  } else {
-    ap=a;
-    del=sum=1.0/a;
-    for (n=1;n<=ITMAX;n++) {
-      ++ap;
-      del *= x/ap;
-      sum += del;
-      if (fabs(del) < fabs(sum)*EPS) {
-	*gamser=sum*exp(-x+a*log(x)-(*gln));
-	return;
-      }
-    }
+	int n;
+	double sum,del,ap;
+	*gln=lgamma(a);
+	
+	if (x <= 0.0) {
+		assert(x>=0.);
+		*gamser=0.0;
+		return;
+	}
+	ap=a;
+	del=sum=1.0/a;
+	for (n=1; n<=ITMAX; n++) {
+		++ap;
+		del *= x/ap;
+		sum += del;
+		if (fabs(del) < fabs(sum)*EPS) {
+			*gamser=sum*exp(-x+a*log(x)-(*gln));
+			return;
+		}
+	}
     printf("a too large, ITMAX too small in routine gser");
     return;
   }
-}
+
  
 static void gcf(double *gammcf, double a, double x, double *gln){
-  int i;
-  double an,b,c,d,del,h;
   
-  *gln=lgamma(a);
-  b=x+1.0-a;
-  c=1.0/FPMIN;
-  d=1.0/b;
-  h=d;
-  for (i=1;i<=ITMAX;i++) {
-    an = -i*(i-a);
-    b += 2.0;
-    d=an*d+b;
-    if (fabs(d) < FPMIN) d=FPMIN;
-    c=b+an/c;
-    if (fabs(c) < FPMIN) c=FPMIN;
-    d=1.0/d;
-    del=d*c;
-    h *= del;
-    if (fabs(del-1.0) < EPS) break;
-  }
-  assert(i<=ITMAX);
-  *gammcf=exp(-x+a*log(x)-(*gln))*h;
+	*gln = lgamma(a);
+	double b=x+1.0-a;
+	double c=1.0/FPMIN;
+	double d=1.0/b;
+	double h=d;
+
+	double an, del;
+	int i;
+	for (i=1; i<=ITMAX; i++) {
+		
+		an = -i*(i-a);
+		b += 2.0;
+		d = an*d+b;
+		if (fabs(d) < FPMIN) d=FPMIN;
+		d = 1.0/d;
+
+		c=b+an/c;
+		if (fabs(c) < FPMIN) c=FPMIN;
+		
+		del=d*c;
+		h *= del;
+		if (fabs(del-1.0) < EPS) break;
+	}
+	assert(i<=ITMAX);
+	*gammcf = exp(-x+a*log(x)-(*gln))*h;
+}
+
+void swapIfLess(int& x, int& y){
+	if (x<y){
+		int tmp = x;
+		x = y;
+		y = tmp;
+	}
 }
 
 static int ijkl2intindex(int i, int j, int k, int l){
-  int tmp,ij,kl;
-  if (i<j){
-    tmp = i;
-    i = j;
-    j = tmp;
-  }
-  if (k<l){
-    tmp = k;
-    k = l;
-    l = tmp;
-  }
-  ij = i*(i+1)/2+j;
-  kl = k*(k+1)/2+l;
-  if (ij<kl){
-    tmp = ij;
-    ij = kl;
-    kl = tmp;
-  }
+
+	swapIfLess(i,j);
+	swapIfLess(k,l);
+	
+	ij = i*(i+1)/2+j;
+	kl = k*(k+1)/2+l;
+	
+	swapIfLess(ij, kl);
+
   return ij*(ij+1)/2+kl;
 }
 
@@ -518,31 +525,89 @@ static double three_center_1D(double xi, int ai, double alphai,
 			      double xj, int aj, double alphaj,
 			      double xk, int ak, double alphak){
 
-  double gamma, dx, px, xpi,xpj,xpk,intgl;
-  int q,r,s,n;
-  
-  gamma = alphai+alphaj+alphak;
-  dx = exp(-alphai*alphaj*pow(xi-xj,2.)/gamma) *
-    exp(-alphai*alphak*pow(xi-xk,2.)/gamma) *
-    exp(-alphaj*alphak*pow(xj-xk,2.)/gamma);
-  px = (alphai*xi+alphaj*xj+alphak*xk)/gamma;
+	double gamma = alphai+alphaj+alphak;
+	
+	double dx= exp(-alphai*alphaj*pow(xi-xj,2.)/gamma)*
+		exp(-alphai*alphak*pow(xi-xk,2.)/gamma) *
+		exp(-alphaj*alphak*pow(xj-xk,2.)/gamma);
+	
+	double px = (alphai*xi+alphaj*xj+alphak*xk)/gamma;
     
-  xpi = px-xi;
-  xpj = px-xj;
-  xpk = px-xk;
-  intgl = 0;
-  for (q=0; q<ai+1; q++){
-    for (r=0; r<aj+1; r++){
-      for (s=0; s<ak+1; s++){
-	n = (q+r+s)/2;
-	if ((q+r+s)%2 == 0) {
-	  intgl += binomial(ai,q)*binomial(aj,r)*binomial(ak,s)*
-	    pow(xpi,(double)(ai-q))*pow(xpj,(double)(aj-r))*pow(xpk,(double)(ak-s))*
-	    fact2(2*n-1)/pow(2*gamma,(double)(n))*sqrt(M_PI/gamma);
-	}
-      }
-    }
-  }
+	double xpi = px-xi;
+	double xpj = px-xj;
+	double xpk = px-xk;
+	
+	double intgl = 0;
+	for (int q=0; q<ai+1; q++)
+		for (int r=0; r<aj+1; r++)
+			for (int s=0; s<ak+1; s++){
+				int n = (q+r+s)/2;
+				if ((q+r+s)%2 == 0) {
+					intgl+= binomial(ai,q)*
+							binomial(aj,r)*
+							binomial(ak,s)*
+							pow(xpi,(double)(ai-q))*
+							pow(xpj,(double)(aj-r))*
+							pow(xpk,(double)(ak-s))*
+							fact2(2*n-1)/
+							pow(2*gamma,(double)(n))*
+							sqrt(M_PI/gamma);
+				}
+			}		
+	
   return dx*intgl;
 }
 
+static double Wcalc(double alp){
+	double xterm1,xterm2;
+	double yterm1,yterm2;
+	double zterm1,zterm2,w;
+	double answer;
+	double c = 3.0;
+	double d = 0.0;
+	int rpow = 2;
+	int rpow0= 0;
+
+
+  	FORTRANNAME(wqromb)(&c,&rpow,&alp,&answer);                     
+        xterm1 = answer;
+        double t99 = 2.0*xterm1;
+        cout << "xterm1  " << t99 << endl;
+
+
+  	FORTRANNAME(wqromb)(&d,&rpow0,&alp,&answer);                     
+        xterm2 = answer;
+        double t98 = 2.0*xterm2;
+        cout << "xterm2 1d overlap t98 " << t98 << endl;
+
+
+  	FORTRANNAME(wqromb)(&c,&rpow,&alp,&answer);                     
+        yterm1 = answer;
+
+
+  	FORTRANNAME(wqromb)(&d,&rpow0,&alp,&answer);                     
+        yterm2 = answer;
+
+
+  	FORTRANNAME(wqromb)(&c,&rpow,&alp,&answer);                     
+        zterm1 = answer;
+
+
+  	FORTRANNAME(wqromb)(&d,&rpow0,&alp,&answer);                     
+        zterm2 = answer;
+        double t97 = 2.0*yterm1;
+        cout << "yterm1  " << t97 << endl;
+        double t96 = 2.0*yterm2;
+        cout << "yterm2  " << t96 << endl;
+        double t95 = 2.0*zterm1;
+        cout << "zterm1  " << t95 << endl;
+        double t94 = 2.0*zterm2;
+        cout << "zterm2  " << t94 << endl;
+
+        w = 8.0*xterm1*yterm2*zterm2+
+            8.0*xterm2*yterm1*zterm2+
+            8.0*xterm2*yterm2*zterm1;
+ 
+        cout << w << " w" << endl; 
+        return w;
+}
