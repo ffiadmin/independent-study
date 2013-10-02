@@ -591,3 +591,58 @@ static double three_center_1D(double xi, int ai, double alphai,
   return dx*intgl;
 }
 
+static double Wcalc(double alp){
+	double xterm1,xterm2;
+	double yterm1,yterm2;
+	double zterm1,zterm2,w;
+	double answer;
+	double c = 3.0;
+	double d = 0.0;
+        int rpow =2;
+        int rpow0 =0;
+
+
+  	FORTRANNAME(wqromb)(&c,&rpow,&alp,&answer);                     
+        xterm1 = answer;
+        double t99 = 2.0*xterm1;
+        cout << "xterm1  " << t99 << endl;
+
+
+  	FORTRANNAME(wqromb)(&d,&rpow0,&alp,&answer);                     
+        xterm2 = answer;
+        double t98 = 2.0*xterm2;
+        cout << "xterm2 1d overlap t98 " << t98 << endl;
+
+
+  	FORTRANNAME(wqromb)(&c,&rpow,&alp,&answer);                     
+        yterm1 = answer;
+
+
+  	FORTRANNAME(wqromb)(&d,&rpow0,&alp,&answer);                     
+        yterm2 = answer;
+
+
+  	FORTRANNAME(wqromb)(&c,&rpow,&alp,&answer);                     
+        zterm1 = answer;
+
+
+  	FORTRANNAME(wqromb)(&d,&rpow0,&alp,&answer);                     
+        zterm2 = answer;
+        double t97 = 2.0*yterm1;
+        cout << "yterm1  " << t97 << endl;
+        double t96 = 2.0*yterm2;
+        cout << "yterm2  " << t96 << endl;
+        double t95 = 2.0*zterm1;
+        cout << "zterm1  " << t95 << endl;
+        double t94 = 2.0*zterm2;
+        cout << "zterm2  " << t94 << endl;
+
+        w = 8.0*xterm1*yterm2*zterm2+
+            8.0*xterm2*yterm1*zterm2+
+            8.0*xterm2*yterm2*zterm1;
+ 
+        cout << w << " w" << endl; 
+        return w;
+   
+
+}
