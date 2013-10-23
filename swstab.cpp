@@ -1,4 +1,5 @@
 /**********************************************************************
+ PLEASE DELETE THIS LINE
  * This program uses the one-electron integrals from:
  * cints.c  C implementation of simple math functions in pyutil.
  *
