@@ -1,4 +1,0 @@
-A not-yet comprehensive list of standards I'm using in reorganizing code
-
-- Line break should follow every operator in long mathematical expressions
-- Variables should be declared near their use

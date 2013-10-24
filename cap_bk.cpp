@@ -1,0 +1,781 @@
+/**********************************************************************
+ * This program uses the one-electron integrals from:
+ * cints.c  C implementation of simple math functions in pyutil.
+ *
+ * The equations herein are based upon
+ * 'Gaussian Expansion Methods for Molecular Orbitals.' H. Taketa,
+ * S. Huzinaga, and K. O-ohata. H. Phys. Soc. Japan, 21, 2313, 1966.
+ * [THO paper].
+ *
+ This program is part of the PyQuante quantum chemistry program suite.
+
+ Copyright (c) 2004, Richard P. Muller. All Rights Reserved. 
+
+ PyQuante version 1.2 and later is covered by the modified BSD
+ license. Please see the file LICENSE that is part of this
+ distribution. 
+
+ The program reads in an option from the input file:
+
+	CAP or STAB
+
+Stored in the variable method
+
+Next the program reads in minalp, maxalp, and step which are the min and max value of the scaling parameter adn the step 
+for the parameter.  If method is NOT CAP then the basis functions are scaled.
+ **********************************************************************/
+
+#include "cap.h"
+#include <string>
+#include "fortran.h"
+#include <assert.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
+#include <fstream>
+#include "gsl_sf_gamma.h"
+
+using namespace std;
+
+#if defined(_WIN32)
+double lgamma(double x);
+#endif
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#define ITMAX 100
+#define EPS 3.0e-12
+#define FPMIN 1.0e-30
+#define SMALL 0.0000000000001
+
+extern "C" void FORTRANNAME(dsyev)(char *job, char *uplo, int *n, double *a, int *lda,
+                                   double *w, double *aux, int *naux, int *info);
+extern "C" void FORTRANNAME(dgemm)(char *transa, char *transb, int *m, int *n, int *k,
+                                   double *alpha, double *a, int *lda, double *b, int *ldb, double *beta,
+                                   double *c, int *ldc);
+extern "C" void FORTRANNAME(myeig)( int *nbasis,int *nb2, double *Fmat2, double *Wcore1, double *scale);
+
+int main(){
+        std::string method;
+        double minalp, maxalp, step;
+	int nbasis,nnuc;
+
+        ifstream in_stream;
+        in_stream.open("input");
+   
+        cout.setf(ios::fixed);
+        cout.setf(ios::showpoint);
+        cout.precision(16);
+
+//      read in the method keyword CAP or STAB
+
+        in_stream >> method;
+
+        if (method=="CAP")cout << "CAP" <<endl;
+        if (method!="CAP")cout << "STAB" <<endl;
+
+//      read in minalp, maxalp, and step
+
+        in_stream >> minalp >> maxalp >> step;
+
+        cout << "minalp = "  << minalp << endl;
+        cout << "maxalp = "  << maxalp << endl;
+        cout << "step   = "  << step   << endl;
+
+        in_stream >> nbasis >> nnuc;
+
+        cout << "nbasis =  " << nbasis << endl;
+        cout << "nnuc =  " << nnuc << endl;
+	
+	int l[nbasis], m[nbasis], n[nbasis];
+	double	alpha[nbasis], x[nbasis], y[nbasis], z[nbasis], norm[nbasis];
+	double nchg[nnuc], nx[nnuc], ny[nnuc], nz[nnuc];
+	double Tint[nbasis][nbasis],Smat[nbasis][nbasis],Vint[nbasis][nbasis];
+        double core [nbasis][nbasis];	
+	double t1,t2,t3,t4;
+        int naux = 3*nbasis-1;
+        int info;
+        double svec[nbasis], aux[naux], Xmat[nbasis][nbasis], Fmat[nbasis][nbasis],Fmat1[nbasis][nbasis];	
+        double XmatTrans[nbasis][nbasis], fvec[nbasis],Cmat[nbasis][nbasis], alp_standard[nbasis] ;
+        double tempalpha=1.0;
+        double Fmat2[nbasis][nbasis];
+        double tempbeta = 0.0;
+
+        double min, max;
+
+  	for(int ii=0; ii<nbasis; ii++){
+            in_stream >> l[ii] >> m[ii] >> n[ii] >> alp_standard[ii] >> x[ii] >> y[ii] >> z[ii];
+        }
+
+  	for(int ii=0; ii<nnuc; ii++){
+            in_stream >> nx[ii] >> ny[ii] >> nz[ii] >> nchg[ii];
+            nx[ii]=nx[ii]/0.529177249;
+            ny[ii]=ny[ii]/0.529177249;
+            nz[ii]=nz[ii]/0.529177249;
+        }
+
+            in_stream >> min >> max;
+
+        cout << "min =  " << min  << endl;
+        cout << "max =  " << max  << endl;
+
+        in_stream.close();
+
+
+       	for (double scale=minalp; scale<=maxalp; scale=scale+step){
+
+//      start scale loop -- if method is not CAP, scale basis functions
+
+       		if (method != "CAP") {
+			for (int i=0; i<nbasis; i++){
+               	       		alpha[i]=scale*alp_standard[i];
+			}	
+                }
+
+		else {
+			for (int i=0; i<nbasis; i++){
+               	       		alpha[i]=alp_standard[i];
+			}	
+                }
+
+//      calculate normalization constants
+
+		for(int i=0; i<nbasis; i++){
+			t1= pow(2.0,(double)(l[i]+m[i]+n[i]));
+			t2= pow(alpha[i],(double)(2*l[i]+2*m[i]+2*n[i]+3));
+			t2=pow(t2,.25);
+			t3 = pow(2/M_PI,0.75);
+			t4=sqrt((double)(fact2(2*l[i]-1)*fact2(2*m[i]-1)*fact2(2*n[i]-1)));
+			norm[i]=t1*t2*t3/t4;
+		}
+
+//              cout << "done with norm" << endl;
+
+//      calculate the T, S, and V ints and form core
+
+		for (int row=0; row<nbasis; row++){
+			for (int col=0; col<nbasis; col++){
+				Tint [row][col]= norm[row]*norm[col]*
+			                kinetic(alpha[row],l[row],m[row],n[row],x[row],y[row],z[row],
+			                       alpha[col],l[col],m[col],n[col],x[col],y[col],z[col]);
+
+//				cout << row << " " << col << " " << Tint[row][col] <<"Tint" << endl;
+			
+				Smat [row][col]= norm[row]*norm[col]*
+			                overlap(alpha[row],l[row],m[row],n[row],x[row],y[row],z[row],
+			                       alpha[col],l[col],m[col],n[col],x[col],y[col],z[col]);
+//  				cout << row << " " << col << " " << Smat[row][col] <<"Smat" << endl;
+				
+				Vint[row][col]=0.0;
+		                       		
+		       for (int center=0; center<nnuc; center ++){
+				Vint[row][col]= Vint[row][col] + nchg[center]*
+					  nuclear_attraction(x[row],y[row],z[row],norm[row],l[row],m[row],n[row],alpha[row],
+			                       x[col],y[col],z[col],norm[col],l[col],m[col],n[col],alpha[col],
+				                       nx[center],ny[center],nz[center]);
+			     }          
+//				cout << row << " " << col << " " << Vint[row][col] <<"Vint" << endl;
+		     			
+			     	core[row][col]=Tint[row][col]+Vint[row][col];
+//				cout << row << " " << col << " " << core[row][col] <<"core" << endl;
+			} 
+		}
+
+
+//              cout << "done with core" << endl;
+
+//              find eigenvals and vecs for the S matrix, form the X and Xtranspose and transfor core to orthonormal
+//              basis set before diagonalizing.
+
+                FORTRANNAME(dsyev)("V", "U", &nbasis, *Smat, &nbasis,  svec, aux, &naux, &info);	
+
+                for (int row=0; row<nbasis; row++){
+                      for (int col=0; col<nbasis; col++){
+                             /* Xmat[row][col] = Smat[row][col]/sqrt(svec[col]); */
+                              Xmat[row][col] = Smat[col][row]/sqrt(svec[col]);
+//                     cout << Xmat[row][col] << "  " << row << "  " << col <<endl;
+                              XmatTrans[col][row]=Xmat[row][col];
+                      }
+                }
+
+//		transform core to orthonormal basis and store in Fmat1
+
+                FORTRANNAME(dgemm)("N","N",&nbasis,&nbasis,&nbasis,&tempalpha,*Xmat,&nbasis,*core,&nbasis,&tempbeta,*Fmat,&nbasis);
+                FORTRANNAME(dgemm)("N","N",&nbasis,&nbasis,&nbasis,&tempalpha,*Fmat,&nbasis,*XmatTrans,&nbasis,&tempbeta,*Fmat1,&nbasis);
+
+
+		
+                for (int row=0; row<nbasis; row++){
+                      for (int col=0; col<nbasis; col++){
+                              Fmat2[row][col] = Fmat1[col][row];
+//                       cout << Fmat2[row][col] << " row  " << row << "  col  " << col << endl;
+                      }
+                }
+
+//              IF mehtod is CAP form the Wmat for the CAP
+
+
+                if (method=="CAP"){
+                	double Wmat[nbasis][nbasis],xterm,yterm,zterm,rab2,gamma_sum,xp,yp,zp,pre,cx,cy,cz;
+			double Wcore[nbasis][nbasis],Wcore1[nbasis][nbasis];
+               
+                        cx = 60.0;
+                        cy = 60.0;
+                        cz = 60.0;
+
+			for (int row=0; row<nbasis; row++){
+				for (int col=0; col<nbasis; col++){
+
+					Wmat[row][col]=0.0;
+  					rab2 = dist2(x[row],y[row],z[row],x[col],y[col],z[col]);
+  					gamma_sum = alpha[row]+alpha[col];
+   					xp = product_center_1D(alpha[row],x[row],alpha[col],x[col]);
+   					yp = product_center_1D(alpha[row],y[row],alpha[col],y[col]);
+   					zp = product_center_1D(alpha[row],z[row],alpha[col],z[col]);
+
+  					pre = (M_PI/gamma_sum)*exp(-alpha[col]*alpha[col]*rab2/gamma_sum);
+
+                                        xterm = overlap_1D(m[row],m[col], yp-y[row], yp-y[col], gamma_sum)
+					*	overlap_1D(n[row],n[col], zp-z[row], zp-z[col], gamma_sum)
+					*	norm[row]*norm[col]*pre                                     
+                                        *	Zeta(x[row],x[col],l[row],l[col],alpha[row],alpha[col],cx);
+
+                                        yterm = overlap_1D(l[row],l[col], xp-x[row], xp-x[col], gamma_sum)
+					*	overlap_1D(n[row],n[col], zp-z[row], zp-z[col], gamma_sum)
+					*	norm[row]*norm[col]*pre                                     
+                                        *	Zeta(y[row],y[col],m[row],m[col],alpha[row],alpha[col],cy);
+
+                                        zterm = overlap_1D(m[row],m[col], yp-y[row], yp-y[col], gamma_sum)
+					*	overlap_1D(l[row],l[col], xp-x[row], xp-x[col], gamma_sum)
+					*	norm[row]*norm[col]*pre                                     
+                                        *	Zeta(z[row],z[col],n[row],n[col],alpha[row],alpha[col],cz);
+					Wmat[row][col]=(xterm+yterm+zterm);
+//    				cout << row << " " << col << " " << Wmat[row][col] <<"Wmat" << endl;
+				}
+			}
+
+//			transform to orthonormal basis and store in Wcore1
+
+	                FORTRANNAME(dgemm)("N","N",&nbasis,&nbasis,&nbasis,&tempalpha,*Xmat,&nbasis,*Wmat,
+						&nbasis,&tempbeta,*Wcore,&nbasis);
+       		        FORTRANNAME(dgemm)("N","N",&nbasis,&nbasis,&nbasis,&tempalpha,*Wcore,&nbasis,*XmatTrans,
+						&nbasis,&tempbeta,*Wcore1,&nbasis);
+			
+//			call a fortran routine that takes to Fmat1 and Wcore 1 matrices and returns Cval (complex eigenvalues)
+//			note eigenvectors are NOT returned!
+
+                        int nb2=nbasis+nbasis;
+	
+			FORTRANNAME(myeig)(&nbasis,&nb2,*Fmat2,*Wcore1,&scale);		
+		} 
+
+
+
+
+//              diagonalize core and then transform back to original basis set
+
+                FORTRANNAME(dsyev)("V", "U", &nbasis, *Fmat1, &nbasis,  fvec, aux, &naux, &info);	
+                FORTRANNAME(dgemm)("N","N",&nbasis,&nbasis,&nbasis,&tempalpha,*XmatTrans,&nbasis,*Fmat1,&nbasis,&tempbeta,*Cmat,&nbasis);
+
+                for (int ii=0; ii<nbasis; ii++){
+                     fvec[ii]=27.2114*fvec[ii];
+                     if ((fvec[ii]>min)&&(fvec[ii]<max)){
+//                          cout << scale << " in cap    " << fvec[ii]  << endl;
+                     }
+                 }
+ 
+                 for (int row=0; row<nbasis; row++){
+                     for (int col=0; col<nbasis; col ++){
+
+//                      cout << Cmat[row][col] << "  "  << row << "  " << col  << endl;
+
+                     }
+                  } 
+
+	}
+}       
+     
+static double fB(int i, int l1, int l2, double px, double ax, double bx, 
+		 int r, double g){
+  return binomial_prefactor(i,l1,l2,px-ax,px-bx)*Bfunc(i,r,g);
+}
+
+static double Bfunc(int i, int r, double g){
+  return fact_ratio2(i,r)*pow(4*g,(double)(r-i));
+}
+
+static double contr_coulomb(int lena, double *aexps, double *acoefs,
+			    double *anorms, double xa, double ya, double za,
+			    int la, int ma, int na, 
+			    int lenb, double *bexps, double *bcoefs,
+			    double *bnorms, double xb, double yb, double zb,
+			    int lb, int mb, int nb, 
+			    int lenc, double *cexps, double *ccoefs,
+			    double *cnorms, double xc, double yc, double zc,
+			    int lc, int mc, int nc, 
+			    int lend, double *dexps, double *dcoefs,
+			    double *dnorms, double xd, double yd, double zd,
+			    int ld, int md, int nd){
+
+  int i,j,k,l;
+  double Jij = 0.,incr=0.;
+
+  for (i=0; i<lena; i++)
+    for (j=0; j<lenb; j++)
+      for (k=0; k<lenc; k++)
+	for (l=0; l<lend; l++){
+	  incr = coulomb_repulsion(xa,ya,za,anorms[i],la,ma,na,aexps[i],
+			      xb,yb,zb,bnorms[j],lb,mb,nb,bexps[j],
+			      xc,yc,zc,cnorms[k],lc,mc,nc,cexps[k],
+			      xd,yd,zd,dnorms[l],ld,md,nd,dexps[l]);
+	  
+	  Jij += acoefs[i]*bcoefs[j]*ccoefs[k]*dcoefs[l]*incr;
+	}
+  return Jij;
+}
+
+static double coulomb_repulsion(double xa, double ya, double za, double norma,
+				int la, int ma, int na, double alphaa,
+				double xb, double yb, double zb, double normb,
+				int lb, int mb, int nb, double alphab,
+				double xc, double yc, double zc, double normc,
+				int lc, int mc, int nc, double alphac,
+				double xd, double yd, double zd, double normd,
+				int ld, int md, int nd, double alphad){
+
+  double rab2, rcd2,rpq2,xp,yp,zp,xq,yq,zq,gamma1,gamma2,delta,sum;
+  double *Bx, *By, *Bz;
+  int I,J,K;
+
+  rab2 = dist2(xa,ya,za,xb,yb,zb);
+  rcd2 = dist2(xc,yc,zc,xd,yd,zd);
+  xp = product_center_1D(alphaa,xa,alphab,xb);
+  yp = product_center_1D(alphaa,ya,alphab,yb);
+  zp = product_center_1D(alphaa,za,alphab,zb);
+  xq = product_center_1D(alphac,xc,alphad,xd);
+  yq = product_center_1D(alphac,yc,alphad,yd);
+  zq = product_center_1D(alphac,zc,alphad,zd);
+  rpq2 = dist2(xp,yp,zp,xq,yq,zq);
+  gamma1 = alphaa+alphab;
+  gamma2 = alphac+alphad;
+  delta = (1./gamma1+1./gamma2)/4.;
+
+  Bx = B_array(la,lb,lc,ld,xp,xa,xb,xq,xc,xd,gamma1,gamma2,delta);
+  By = B_array(ma,mb,mc,md,yp,ya,yb,yq,yc,yd,gamma1,gamma2,delta);
+  Bz = B_array(na,nb,nc,nd,zp,za,zb,zq,zc,zd,gamma1,gamma2,delta);
+
+  sum = 0.;
+  for (I=0; I<la+lb+lc+ld+1;I++)
+    for (J=0; J<ma+mb+mc+md+1;J++)
+      for (K=0; K<na+nb+nc+nd+1;K++)
+	sum += Bx[I]*By[J]*Bz[K]*Fgamma(I+J+K,0.25*rpq2/delta);
+
+  free(Bx);
+  free(By);
+  free(Bz);  
+  
+  return 2.*pow(M_PI,2.5)/(gamma1*gamma2*sqrt((double)(gamma1+gamma2)))
+    *exp(-alphaa*alphab*rab2/gamma1) 
+    *exp(-alphac*alphad*rcd2/gamma2)*sum*norma*normb*normc*normd;
+}
+
+static double *B_array(int l1, int l2, int l3, int l4, double p, double a,
+		double b, double q, double c, double d,
+		double g1, double g2, double delta){
+  int Imax,i1,i2,r1,r2,u,I,i;
+  double *B;
+  Imax = l1+l2+l3+l4+1;
+  B = (double *)malloc(Imax*sizeof(double));
+  for (i=0; i<Imax; i++) B[i] = 0.;
+
+  for (i1=0; i1<l1+l2+1; i1++)
+    for (i2=0; i2<l3+l4+1; i2++)
+      for (r1=0; r1<i1/2+1; r1++)
+	for (r2=0; r2<i2/2+1; r2++)
+	  for (u=0; u<(i1+i2)/2-r1-r2+1; u++){
+	    I = i1+i2-2*(r1+r2)-u;
+	    B[I] = B[I] + B_term(i1,i2,r1,r2,u,l1,l2,l3,l4,
+				 p,a,b,q,c,d,g1,g2,delta);
+	  }
+
+  return B;
+}
+
+static double Zeta(double x1, double x2, int l1, int l2, double alpha1, double alpha2, double c){
+
+	int npower=2;
+       	double alpsum=alpha1+alpha2;
+
+// Calculate integrals over CAP per Cederbaum & Santra
+	double Total = 0.0;
+	double t1,t2,t3,t4,t5,t6,t7,t8;
+	for(int rho=0; rho <= l1; rho++){
+		for (int sigma=0; sigma<=l2; sigma++){
+              //     cout << rho << "  rho  "  <<sigma << "  sigma"  << endl;
+		 	t1 = binomial(l1,rho)*binomial(l2,sigma);
+   		        t2 = product_center_1D(alpha1,x1,alpha2,x2);
+   		        t3 = pow((t2-x1),(double)(l1-rho));
+   		        t4 = pow((t2-x2),(double)(l1-sigma));
+
+//			cout << rho << "  rho  " << sigma << "  sigma" <<endl;
+//			cout << t1 << "  " << "t1" << endl;
+//			cout << t2 << "  " << "t2" << endl;
+//			cout << t3 << "  " << "t3" << endl;
+//			cout << t4 << "  " << "t4" << endl;
+
+                        double Iterm = 0.0;
+
+			for (int tau=0; tau<=npower; tau++){
+                                double kappa = (double)(rho+sigma);
+                                double kaptau = kappa+(double)tau;
+				t5 = kaptau + 1.0;
+                                t5 =-0.5*t5;
+   				t6=pow(-1.0,(double)(npower-tau))*binomial(npower,tau)*pow(alpsum,t5);
+                                t7= pow(-1.0,(kappa))*pow((c+t2),(double)(npower-tau));
+//			cout << t7 << "  " << "t7" << tau << "  tau" << endl;
+
+				t7 = t7*DELTA(kaptau,alpsum,c+t2);
+                                t8= pow((c-t2),(double)(npower-tau))*DELTA(kaptau,alpsum,c-t2);
+				Iterm = Iterm+t6*(t7+t8);
+//			cout << t5 << "  " << "t5" << tau << "  tau" <<endl;
+//			cout << t6 << "  " << "t6  " << alpsum << "  alpsum" <<  endl;
+//			cout << t7 << "  " << "t7" << tau << "  tau" << endl;
+//			cout << t8 << "  " << "t8" << tau << "  tau" <<endl;
+//			cout << Iterm << "  " << "Iterm" << tau << "  tau" <<endl;
+			}
+
+			Iterm = 0.5*Iterm;
+      			Total = Total + t1*t3*t3*Iterm;
+		}
+	}
+
+	return Total;
+}
+
+static double DELTA(double k, double a, double c){
+
+//        cout << a << "  a  " << c << "  c  " <<endl;
+	double t1,t2,t3,t4,t5,t6;
+
+ 	t1 = 0.5*(k+1.0);
+	t2 = a*c*c;
+	t3 = gsl_sf_gamma(t1);
+	t4 = gsl_sf_gamma_inc_P(t1,t2);
+//         cout << t4 << "  t4" <<endl;
+        t4 = t4*t3;
+//        cout << "in delta" << endl;
+//	cout << t1 <<  "  "  << t2 << "  " << t3 << "  " << t4 << endl;
+	if (c<0){
+		 t5=pow(-1.0,k+1.0);
+	}
+	else{
+		t5=1.0;
+	}
+
+	t6=    t3-t4*t5;
+//        cout << t5 << "t5 in delta" <<endl;
+//        cout << t6 << "t6 in delta" <<endl;
+        return t6;
+}
+
+
+static double B_term(int i1, int i2, int r1, int r2, int u, int l1, int l2,
+	      int l3, int l4, double Px, double Ax, double Bx,
+	      double Qx, double Cx, double Dx, double gamma1,
+	      double gamma2, double delta){
+  /* THO eq. 2.22 */
+  return fB(i1,l1,l2,Px,Ax,Bx,r1,gamma1)
+    *pow(-1,(double)(i2))*fB(i2,l3,l4,Qx,Cx,Dx,r2,gamma2)
+    *pow(-1,(double)(u))*fact_ratio2(i1+i2-2*(r1+r2),u)
+    *pow(Qx-Px,(double)(i1+i2-2*(r1+r2)-2*u))
+    /pow(delta,(double)(i1+i2-2*(r1+r2)-u));
+}
+
+
+static double kinetic(double alpha1, int l1, int m1, int n1,
+	       double xa, double ya, double za,
+	       double alpha2, int l2, int m2, int n2,
+	       double xb, double yb, double zb){
+
+  double term0,term1,term2;
+  term0 = alpha2*(2*(l2+m2+n2)+3)*
+    overlap(alpha1,l1,m1,n1,xa,ya,za,
+		   alpha2,l2,m2,n2,xb,yb,zb);
+  term1 = -2*pow(alpha2,(double)(2))*
+    (overlap(alpha1,l1,m1,n1,xa,ya,za,
+		    alpha2,l2+2,m2,n2,xb,yb,zb)
+     + overlap(alpha1,l1,m1,n1,xa,ya,za,
+		      alpha2,l2,m2+2,n2,xb,yb,zb)
+     + overlap(alpha1,l1,m1,n1,xa,ya,za,
+		      alpha2,l2,m2,n2+2,xb,yb,zb));
+  term2 = -0.5*(l2*(l2-1)*overlap(alpha1,l1,m1,n1,xa,ya,za,
+					 alpha2,l2-2,m2,n2,xb,yb,zb) +
+		m2*(m2-1)*overlap(alpha1,l1,m1,n1,xa,ya,za,
+					 alpha2,l2,m2-2,n2,xb,yb,zb) +
+		n2*(n2-1)*overlap(alpha1,l1,m1,n1,xa,ya,za,
+					 alpha2,l2,m2,n2-2,xb,yb,zb));
+  return term0+term1+term2;
+}
+
+static double overlap(double alpha1, int l1, int m1, int n1,
+		      double xa, double ya, double za,
+		      double alpha2, int l2, int m2, int n2,
+		      double xb, double yb, double zb){
+  /*Taken from THO eq. 2.12*/
+  double rab2,gamma,xp,yp,zp,pre,wx,wy,wz;
+
+  rab2 = dist2(xa,ya,za,xb,yb,zb);
+  gamma = alpha1+alpha2;
+   xp = product_center_1D(alpha1,xa,alpha2,xb);
+  yp = product_center_1D(alpha1,ya,alpha2,yb);
+  zp = product_center_1D(alpha1,za,alpha2,zb);
+
+  pre = pow(M_PI/gamma,1.5)*exp(-alpha1*alpha2*rab2/gamma);
+
+  wx = overlap_1D(l1,l2,xp-xa,xp-xb,gamma);
+  wy = overlap_1D(m1,m2,yp-ya,yp-yb,gamma);
+  wz = overlap_1D(n1,n2,zp-za,zp-zb,gamma);
+  return pre*wx*wy*wz;
+}
+
+static double overlap_1D(int l1, int l2, double PAx,
+			 double PBx, double gamma){
+  /*Taken from THO eq. 2.12*/
+  int i;
+  double sum;
+  sum = 0.;
+  for (i=0; i<(1+floor(0.5*(l1+l2))); i++)
+    sum += binomial_prefactor(2*i,l1,l2,PAx,PBx)* 
+      fact2(2*i-1)/pow(2*gamma,(double)(i));
+  return sum;
+}
+    
+static double nuclear_attraction(double x1, double y1, double z1, double norm1,
+				 int l1, int m1, int n1, double alpha1,
+				 double x2, double y2, double z2, double norm2,
+				 int l2, int m2, int n2, double alpha2,
+				 double x3, double y3, double z3){
+  int I,J,K;
+  double gamma,xp,yp,zp,sum,rab2,rcp2;
+  double *Ax,*Ay,*Az;
+
+  gamma = alpha1+alpha2;
+
+  xp = product_center_1D(alpha1,x1,alpha2,x2);
+  yp = product_center_1D(alpha1,y1,alpha2,y2);
+  zp = product_center_1D(alpha1,z1,alpha2,z2);
+
+  rab2 = dist2(x1,y1,z1,x2,y2,z2);
+  rcp2 = dist2(x3,y3,z3,xp,yp,zp);
+
+  Ax = A_array(l1,l2,xp-x1,xp-x2,xp-x3,gamma);
+  Ay = A_array(m1,m2,yp-y1,yp-y2,yp-y3,gamma);
+  Az = A_array(n1,n2,zp-z1,zp-z2,zp-z3,gamma);
+
+  sum = 0.;
+  for (I=0; I<l1+l2+1; I++)
+    for (J=0; J<m1+m2+1; J++)
+      for (K=0; K<n1+n2+1; K++)
+	sum += Ax[I]*Ay[J]*Az[K]*Fgamma(I+J+K,rcp2*gamma);
+
+  free(Ax);
+  free(Ay);
+  free(Az);
+  return -norm1*norm2*
+    2*M_PI/gamma*exp(-alpha1*alpha2*rab2/gamma)*sum;
+}
+    
+static double A_term(int i, int r, int u, int l1, int l2,
+		     double PAx, double PBx, double CPx, double gamma){
+  /* THO eq. 2.18 */
+  return pow(-1,(double)(i))*binomial_prefactor(i,l1,l2,PAx,PBx)*
+    pow(-1,(double)(u))*fact(i)*pow(CPx,(double)(i-2*r-2*u))*
+    pow(0.25/gamma,(double)(r+u))/fact(r)/fact(u)/fact(i-2*r-2*u);
+}
+
+static double *A_array(int l1, int l2, double PA, double PB,
+		double CP, double g){
+  /* THO eq. 2.18 and 3.1 */
+  int Imax,i,r,u,I;
+  double *A;
+
+  Imax = l1+l2+1;
+  A = (double *)malloc(Imax*sizeof(double));
+  for (i=0; i<Imax; i++) A[i] = 0.;
+  for (i=0; i<Imax; i++)
+    for (r=0; r<floor((double)(i/2))+1;r++)
+      for (u=0; u<floor((i-2*r)/2.)+1; u++){
+	I = i-2*r-u;
+	A[I] += A_term(i,r,u,l1,l2,PA,PB,CP,g);
+      }
+  return A;
+}
+
+
+static int fact(int n){
+  if (n <= 1) return 1;
+  return n*fact(n-1);
+}
+
+static int fact2(int n){ /* double factorial function = 1*3*5*...*n */
+  if (n <= 1) return 1;
+  return n*fact2(n-2);
+}
+
+static double dist2(double x1, double y1, double z1,
+		    double x2, double y2, double z2){
+  return (x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2);
+}
+static double dist(double x1, double y1, double z1,
+		   double x2, double y2, double z2){
+  return sqrt(dist2(x1,y1,z1,x2,y2,z2));
+}
+
+static double binomial_prefactor(int s, int ia, int ib, double xpa, double xpb){
+  int t;
+  double sum=0.;
+  for (t=0; t<s+1; t++)
+    if ((s-ia <= t) && (t <= ib)) 
+      sum += binomial(ia,s-t)*binomial(ib,t)*pow(xpa,(double)(ia-s+t))*pow(xpb,(double)(ib-t));
+  return sum;
+} 
+
+static int binomial(int a, int b){return fact(a)/(fact(b)*fact(a-b));}
+
+static double Fgamma(double m, double x){
+  double val;
+  if (fabs(x) < SMALL) x = SMALL;
+  val = gamm_inc(m+0.5,x);
+  /* if (val < SMALL) return 0.; */ /* Gives a bug for D orbitals. */
+  return 0.5*pow(x,-m-0.5)*val; 
+}
+
+static double gamm_inc(double a, double x){ /* Taken from NR routine gammap */
+  double gamser,gammcf,gln;
+  
+  assert (x >= 0.);
+  assert (a > 0.);
+  if (x < (a+1.0)) {
+    gser(&gamser,a,x,&gln);
+    return exp(gln)*gamser;
+  } else {
+    gcf(&gammcf,a,x,&gln);
+    return exp(gln)*(1.0-gammcf);
+  }
+}
+ 
+static void gser(double *gamser, double a, double x, double *gln){
+  int n;
+  double sum,del,ap;
+
+  *gln=lgamma(a);
+  if (x <= 0.0) {
+    assert(x>=0.);
+    *gamser=0.0;
+    return;
+  } else {
+    ap=a;
+    del=sum=1.0/a;
+    for (n=1;n<=ITMAX;n++) {
+      ++ap;
+      del *= x/ap;
+      sum += del;
+      if (fabs(del) < fabs(sum)*EPS) {
+	*gamser=sum*exp(-x+a*log(x)-(*gln));
+	return;
+      }
+    }
+    printf("a too large, ITMAX too small in routine gser");
+    return;
+  }
+}
+ 
+static void gcf(double *gammcf, double a, double x, double *gln){
+  int i;
+  double an,b,c,d,del,h;
+  
+  *gln=lgamma(a);
+  b=x+1.0-a;
+  c=1.0/FPMIN;
+  d=1.0/b;
+  h=d;
+  for (i=1;i<=ITMAX;i++) {
+    an = -i*(i-a);
+    b += 2.0;
+    d=an*d+b;
+    if (fabs(d) < FPMIN) d=FPMIN;
+    c=b+an/c;
+    if (fabs(c) < FPMIN) c=FPMIN;
+    d=1.0/d;
+    del=d*c;
+    h *= del;
+    if (fabs(del-1.0) < EPS) break;
+  }
+  assert(i<=ITMAX);
+  *gammcf=exp(-x+a*log(x)-(*gln))*h;
+}
+
+static int ijkl2intindex(int i, int j, int k, int l){
+  int tmp,ij,kl;
+  if (i<j){
+    tmp = i;
+    i = j;
+    j = tmp;
+  }
+  if (k<l){
+    tmp = k;
+    k = l;
+    l = tmp;
+  }
+  ij = i*(i+1)/2+j;
+  kl = k*(k+1)/2+l;
+  if (ij<kl){
+    tmp = ij;
+    ij = kl;
+    kl = tmp;
+  }
+  return ij*(ij+1)/2+kl;
+}
+
+static int fact_ratio2(int a, int b){ return fact(a)/fact(b)/fact(a-2*b); }
+
+static double product_center_1D(double alphaa, double xa, 
+			 double alphab, double xb){
+  return (alphaa*xa+alphab*xb)/(alphaa+alphab);
+}
+
+static double three_center_1D(double xi, int ai, double alphai,
+			      double xj, int aj, double alphaj,
+			      double xk, int ak, double alphak){
+
+  double gamma, dx, px, xpi,xpj,xpk,intgl;
+  int q,r,s,n;
+  
+  gamma = alphai+alphaj+alphak;
+  dx = exp(-alphai*alphaj*pow(xi-xj,2.)/gamma) *
+    exp(-alphai*alphak*pow(xi-xk,2.)/gamma) *
+    exp(-alphaj*alphak*pow(xj-xk,2.)/gamma);
+  px = (alphai*xi+alphaj*xj+alphak*xk)/gamma;
+    
+  xpi = px-xi;
+  xpj = px-xj;
+  xpk = px-xk;
+  intgl = 0;
+  for (q=0; q<ai+1; q++){
+    for (r=0; r<aj+1; r++){
+      for (s=0; s<ak+1; s++){
+	n = (q+r+s)/2;
+	if ((q+r+s)%2 == 0) {
+	  intgl += binomial(ai,q)*binomial(aj,r)*binomial(ak,s)*
+	    pow(xpi,(double)(ai-q))*pow(xpj,(double)(aj-r))*pow(xpk,(double)(ak-s))*
+	    fact2(2*n-1)/pow(2*gamma,(double)(n))*sqrt(M_PI/gamma);
+	}
+      }
+    }
+  }
+  return dx*intgl;
+}
+

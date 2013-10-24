@@ -1,4 +1,21 @@
-//This file is a function library amassed from the sw files
+/**********************************************************************
+ * This program uses the one-electron integrals from:
+ * cints.c  C implementation of simple math functions in pyutil.
+ *
+ * The equations herein are based upon
+ * 'Gaussian Expansion Methods for Molecular Orbitals.' H. Taketa,
+ * S. Huzinaga, and K. O-ohata. H. Phys. Soc. Japan, 21, 2313, 1966.
+ * [THO paper].
+ *
+ This program is part of the PyQuante quantum chemistry program suite.
+
+ Copyright (c) 2004, Richard P. Muller. All Rights Reserved. 
+
+ PyQuante version 1.2 and later is covered by the modified BSD
+ license. Please see the file LICENSE that is part of this
+ distribution. 
+
+ **********************************************************************/
 
 #include "model.h"
 #include <string>
@@ -11,6 +28,241 @@
 #include <fstream>
 #include "gsl_sf_gamma.h"
 
+using namespace std;
+
+#if defined(_WIN32)
+double lgamma(double x);
+#endif
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#define ITMAX 100
+#define EPS 3.0e-12
+#define FPMIN 1.0e-30
+#define SMALL 0.0000000000001
+
+extern "C" void FORTRANNAME(dsyev)(char *job, char *uplo, int *n, double *a, int *lda,
+                                   double *w, double *aux, int *naux, int *info);
+extern "C" void FORTRANNAME(dgemm)(char *transa, char *transb, int *m, int *n, int *k,
+                                   double *alpha, double *a, int *lda, double *b, int *ldb, double *beta,
+                                   double *c, int *ldc);
+extern "C" void FORTRANNAME(myeig)( int *nbasis,int *nb2, double *Fmat2, double *Wcore1, double *scale);
+
+extern "C" void FORTRANNAME(qromb)(int *l, double *alp,  double *answer);                     
+
+int main(){
+        double minalp, maxalp, step;
+	int nbasis,nnuc;
+
+        ifstream in_stream;
+        in_stream.open("comp.inp");
+   
+        cout.setf(ios::fixed);
+        cout.setf(ios::showpoint);
+        cout.precision(16);
+
+//      read in minalp, maxalp, and step
+
+        in_stream >> minalp >> maxalp >> step;
+
+        cout << "minalp = "  << minalp << endl;
+        cout << "maxalp = "  << maxalp << endl;
+        cout << "step   = "  << step   << endl;
+
+        in_stream >> nbasis >> nnuc;
+
+        cout << "nbasis =  " << nbasis << endl;
+        cout << "nnuc =  " << nnuc << endl;
+	
+	int l[nbasis], m[nbasis], n[nbasis];
+	double	alpha[nbasis], x[nbasis], y[nbasis], z[nbasis], norm[nbasis];
+	double nchg[nnuc], nx[nnuc], ny[nnuc], nz[nnuc];
+	double Tint[nbasis][nbasis],Smat[nbasis][nbasis],Vint[nbasis][nbasis];
+        double core [nbasis][nbasis],Mint[nbasis][nbasis];	
+	double t1,t2,t3,t4;
+        int naux = 3*nbasis-1;
+        int info;
+        double svec[nbasis], aux[naux], Xmat[nbasis][nbasis], Fmat[nbasis][nbasis],Fmat1[nbasis][nbasis];	
+        double XmatTrans[nbasis][nbasis], alp_standard[nbasis] ;
+        double tempalpha=1.0;
+        double Fmat2[nbasis][nbasis];
+        double tempbeta = 0.0;
+
+        double min, max;
+
+  	for(int ii=0; ii<nbasis; ii++){
+            in_stream >> l[ii] >> m[ii] >> n[ii] >> alp_standard[ii] >> x[ii] >> y[ii] >> z[ii];
+        }
+
+  	for(int ii=0; ii<nnuc; ii++){
+            in_stream >> nx[ii] >> ny[ii] >> nz[ii] >> nchg[ii];
+            nx[ii]=nx[ii]/0.529177249;
+            ny[ii]=ny[ii]/0.529177249;
+            nz[ii]=nz[ii]/0.529177249;
+        }
+
+            in_stream >> min >> max;
+
+        cout << "min =  " << min  << endl;
+        cout << "max =  " << max  << endl;
+
+        in_stream.close();
+
+
+
+	for (int i=0; i<nbasis; i++){
+          	alpha[i]=1.00*alp_standard[i];
+	}
+
+//      calculate normalization constants
+
+	for(int i=0; i<nbasis; i++){
+		t1= pow(2.0,(double)(l[i]+m[i]+n[i]));
+		t2= pow(alpha[i],(double)(2*l[i]+2*m[i]+2*n[i]+3));
+		t2=pow(t2,.25);
+		t3 = pow(2/M_PI,0.75);
+		t4=sqrt((double)(fact2(2*l[i]-1)*fact2(2*m[i]-1)*fact2(2*n[i]-1)));
+		norm[i]=t1*t2*t3/t4;
+	}
+
+//            cout << "done with norm" << endl;
+
+//      calculate the T, S, and V ints and form core
+
+	for (int row=0; row<nbasis; row++){
+		for (int col=0; col<nbasis; col++){
+			Tint [row][col]= norm[row]*norm[col]*
+		                kinetic(alpha[row],l[row],m[row],n[row],x[row],y[row],z[row],
+		                       alpha[col],l[col],m[col],n[col],x[col],y[col],z[col]);
+
+  				cout << row << " " << col << " " << Tint[row][col] <<"Tint" << endl;
+			
+			Smat [row][col]= norm[row]*norm[col]*
+		                overlap(alpha[row],l[row],m[row],n[row],x[row],y[row],z[row],
+		                       alpha[col],l[col],m[col],n[col],x[col],y[col],z[col]);
+//  			cout << row << " " << col << " " << Smat[row][col] <<"Smat" << endl;
+
+// 			THis is a call to a generic model potential numerical integration routine.
+
+//                        Mint[row][col]= 4.0*M_PI*norm[row]*norm[col]* Model_pot(l[row],l[col],m[row],m[col],n[row],n[col],
+//                                                 alpha[row],alpha[col]);
+//    			cout << row << " " << col << " " << Mint[row][col] <<"Mint" << endl;
+
+			Vint[row][col]=0.0;
+		                       		
+	       		for (int center=0; center<nnuc; center ++){
+				Vint[row][col]= Vint[row][col] + nchg[center]*
+					  nuclear_attraction(x[row],y[row],z[row],norm[row],l[row],m[row],n[row],alpha[row],
+		                       		x[col],y[col],z[col],norm[col],l[col],m[col],n[col],alpha[col],
+			               	        nx[center],ny[center],nz[center]);
+			}          
+
+			cout << row << " " << col << " " << Vint[row][col] <<"Vint" << endl;
+		     			
+	     		core[row][col]=Tint[row][col]+Mint[row][col];
+//			cout << row << " " << col << " " << core[row][col] <<"core" << endl;
+		} 
+
+	}
+
+
+//              cout << "done with core" << endl;
+
+//              find eigenvals and vecs for the S matrix, form the X and Xtranspose and transfor core to orthonormal
+//              basis set before diagonalizing.
+
+        FORTRANNAME(dsyev)("V", "U", &nbasis, *Smat, &nbasis,  svec, aux, &naux, &info);	
+
+        for (int row=0; row<nbasis; row++){
+       		for (int col=0; col<nbasis; col++){
+                             /* Xmat[row][col] = Smat[row][col]/sqrt(svec[col]); */
+                Xmat[row][col] = Smat[col][row]/sqrt(svec[col]);
+//              cout << Xmat[row][col] << "  " << row << "  " << col <<endl;
+                XmatTrans[col][row]=Xmat[row][col];
+                }
+        }
+
+//		transform core to orthonormal basis and store in Fmat1
+
+        FORTRANNAME(dgemm)("N","N",&nbasis,&nbasis,&nbasis,&tempalpha,*Xmat,&nbasis,*core,&nbasis,&tempbeta,*Fmat,&nbasis);
+        FORTRANNAME(dgemm)("N","N",&nbasis,&nbasis,&nbasis,&tempalpha,*Fmat,&nbasis,*XmatTrans,&nbasis,&tempbeta,*Fmat1,&nbasis);
+
+        for (int row=0; row<nbasis; row++){
+        	for (int col=0; col<nbasis; col++){
+                	Fmat2[row][col] = Fmat1[col][row];
+//                      cout << Fmat2[row][col] << " row  " << row << "  col  " << col << endl;
+                }
+        }
+
+//              IF mehtod is CAP form the Wmat for the CAP
+
+
+       	double Wmat[nbasis][nbasis],xterm,yterm,zterm,rab2,gamma_sum,xp,yp,zp,pre,cx,cy,cz;
+	double Wcore[nbasis][nbasis],Wcore1[nbasis][nbasis];
+               
+        cx = 3.00;
+        cy = 3.00;
+        cz = 3.00;
+
+	for (int row=0; row<nbasis; row++){
+		for (int col=0; col<nbasis; col++){
+
+			Wmat[row][col]=0.0;
+  			rab2 = dist2(x[row],y[row],z[row],x[col],y[col],z[col]);
+  			gamma_sum = alpha[row]+alpha[col];
+   			xp = product_center_1D(alpha[row],x[row],alpha[col],x[col]);
+   			yp = product_center_1D(alpha[row],y[row],alpha[col],y[col]);
+   			zp = product_center_1D(alpha[row],z[row],alpha[col],z[col]);
+
+  			pre = (M_PI/gamma_sum)*exp(-alpha[row]*alpha[col]*rab2/gamma_sum);
+
+                        
+/*      			double t99 = Zeta(x[row],x[col],l[row],l[col],alpha[row],alpha[col],cx);  
+                            cout << "t99 zeta  " << t99 << endl;
+                        double t98 = overlap_1D(m[row],m[col], yp-y[row], yp-y[col], gamma_sum);
+                        t98 = t98*sqrt(pre);
+                            cout << "t98  " << t98 << endl;
+*/
+ 
+                        xterm = overlap_1D(m[row],m[col], yp-y[row], yp-y[col], gamma_sum)
+			*	overlap_1D(n[row],n[col], zp-z[row], zp-z[col], gamma_sum)
+			*	norm[row]*norm[col]*pre                                     
+                        *	Zeta(x[row],x[col],l[row],l[col],alpha[row],alpha[col],cx);
+
+//                        cout << xterm << "  xterm complete" << endl;
+                        yterm = overlap_1D(l[row],l[col], xp-x[row], xp-x[col], gamma_sum)
+			*	overlap_1D(n[row],n[col], zp-z[row], zp-z[col], gamma_sum)
+			*	norm[row]*norm[col]*pre                                     
+                        *	Zeta(y[row],y[col],m[row],m[col],alpha[row],alpha[col],cy);
+
+                        zterm = overlap_1D(m[row],m[col], yp-y[row], yp-y[col], gamma_sum)
+			*	overlap_1D(l[row],l[col], xp-x[row], xp-x[col], gamma_sum)
+			*	norm[row]*norm[col]*pre                                     
+                        *	Zeta(z[row],z[col],n[row],n[col],alpha[row],alpha[col],cz);
+			Wmat[row][col]=(xterm+yterm+zterm);
+//      			cout << row << " " << col << " " << Wmat[row][col] <<"Wmat" << endl;
+		}
+	}
+
+//			transform to orthonormal basis and store in Wcore1
+
+        FORTRANNAME(dgemm)("N","N",&nbasis,&nbasis,&nbasis,&tempalpha,*Xmat,&nbasis,*Wmat,
+				&nbasis,&tempbeta,*Wcore,&nbasis);
+        FORTRANNAME(dgemm)("N","N",&nbasis,&nbasis,&nbasis,&tempalpha,*Wcore,&nbasis,*XmatTrans,
+				&nbasis,&tempbeta,*Wcore1,&nbasis);
+			
+//			call a fortran routine that takes to Fmat1 and Wcore 1 matrices and returns Cval (complex eigenvalues)
+//			note eigenvectors are NOT returned!
+
+        int nb2=nbasis+nbasis;
+	
+       	for (double scale=minalp; scale<=maxalp; scale=scale+step){
+			FORTRANNAME(myeig)(&nbasis,&nb2,*Fmat2,*Wcore1,&scale);		
+	} 
+}       
+     
 static double fB(int i, int l1, int l2, double px, double ax, double bx, 
 		 int r, double g){
   return binomial_prefactor(i,l1,l2,px-ax,px-bx)*Bfunc(i,r,g);
@@ -50,32 +302,6 @@ static double contr_coulomb(int lena, double *aexps, double *acoefs,
   return Jij;
 }
 
-//contr_coulomb object rewrite
-struct Len{
-	int		len, l, m, n, temp;
-	
-	double	*exps, *coefs, *norms,
-			x, y, z;	
-};
-
-static double contr_coulomb(Len& a, Len& b, Len& c, Len& d){
-
-  int i,j,k,l;
-  double ret = 0, incr = 0;
-
-  for (i=0; i<a.len; i++)
-	  for (j=0; j<b.len; j++)
-		  for (k=0; k<c.len; k++)
-			  for (l=0; l<d.len; l++){
-				  a.temp = i; b.temp = j; c.temp = k; d.temp = l;
-				  incr = coulomb_repulsion(a,b,c,d);
-				  ret += a.coefs[i]*b.coefs[j]*c.coefs[k]*d.coefs[l]*incr;
-	}
-  return ret;
-}
-
-
-
 static double coulomb_repulsion(double xa, double ya, double za, double norma,
 				int la, int ma, int na, double alphaa,
 				double xb, double yb, double zb, double normb,
@@ -97,51 +323,6 @@ static double coulomb_repulsion(double xa, double ya, double za, double norma,
   xq = product_center_1D(alphac,xc,alphad,xd);
   yq = product_center_1D(alphac,yc,alphad,yd);
   zq = product_center_1D(alphac,zc,alphad,zd);
-  rpq2 = dist2(xp,yp,zp,xq,yq,zq);
-  gamma1 = alphaa+alphab;
-  gamma2 = alphac+alphad;
-  delta = (1./gamma1+1./gamma2)/4.;
-
-  Bx = B_array(la,lb,lc,ld,xp,xa,xb,xq,xc,xd,gamma1,gamma2,delta);
-  By = B_array(ma,mb,mc,md,yp,ya,yb,yq,yc,yd,gamma1,gamma2,delta);
-  Bz = B_array(na,nb,nc,nd,zp,za,zb,zq,zc,zd,gamma1,gamma2,delta);
-
-  sum = 0.;
-  for (I=0; I<la+lb+lc+ld+1;I++)
-    for (J=0; J<ma+mb+mc+md+1;J++)
-      for (K=0; K<na+nb+nc+nd+1;K++)
-	sum += Bx[I]*By[J]*Bz[K]*Fgamma(I+J+K,0.25*rpq2/delta);
-
-  free(Bx);
-  free(By);
-  free(Bz);  
-  
-  return 2.*pow(M_PI,2.5)/(gamma1*gamma2*sqrt((double)(gamma1+gamma2)))
-    *exp(-alphaa*alphab*rab2/gamma1) 
-    *exp(-alphac*alphad*rcd2/gamma2)*sum*norma*normb*normc*normd;
-}
-
-struct PQ{ double xp, yp, zp, xq, yq, zq; };
-
-//coulumb_repulsion object rewrite
-static double coulomb_repulsion(Len& a, Len& b, Len& c, Len& d){
-
-  double rab2, rcd2,rpq2,xp,yp,zp,xq,yq,zq,gamma1,gamma2,delta,sum;
-  double *Bx, *By, *Bz;
-  int I,J,K;
-
-  rab2 = dist2(a,b);
-  rcd2 = dist2(c,d);
-
-  PQ pqs = product_center_1D_all(a,b,c,d);
-
-  xp = product_center_1D(alphaa,a.x,alphab,b.x);
-  yp = product_center_1D(alphaa,a.y,alphab,b.y);
-  zp = product_center_1D(alphaa,a.z,alphab,b.z);
-  xq = product_center_1D(alphac,c.x,alphad,b.x);
-  yq = product_center_1D(alphac,d.y,alphad,b.y);
-  zq = product_center_1D(alphac,c.z,alphad,b.z);
-
   rpq2 = dist2(xp,yp,zp,xq,yq,zq);
   gamma1 = alphaa+alphab;
   gamma2 = alphac+alphad;
@@ -244,6 +425,7 @@ static double Zeta(double x1, double x2, int l1, int l2, double alpha1, double a
 			}
 
 			Iterm = 0.5*Iterm;
+                        cout << "ITERM  " << Iterm <<endl;
       			Total = Total + t1*t3*t4*Iterm;
 		}
 	}
@@ -375,8 +557,9 @@ static double nuclear_attraction(double x1, double y1, double z1, double norm1,
   for (I=0; I<l1+l2+1; I++)
     for (J=0; J<m1+m2+1; J++)
       for (K=0; K<n1+n2+1; K++)
+  cout<< "Ax,Ay,Az  "<<I<<J<<K<<Ax[I]<<Ay[J]<<Az[K]<<endl;
 	sum += Ax[I]*Ay[J]*Az[K]*Fgamma(I+J+K,rcp2*gamma);
-
+  cout <<"sum  "<<sum<<endl;
   free(Ax);
   free(Ay);
   free(Az);
@@ -387,6 +570,13 @@ static double nuclear_attraction(double x1, double y1, double z1, double norm1,
 static double A_term(int i, int r, int u, int l1, int l2,
 		     double PAx, double PBx, double CPx, double gamma){
   /* THO eq. 2.18 */
+
+  double qq = pow(-1,(double)(i))*binomial_prefactor(i,l1,l2,PAx,PBx)*
+    pow(-1,(double)(u))*fact(i)*pow(CPx,(double)(i-2*r-2*u))*
+    pow(0.25/gamma,(double)(r+u))/fact(r)/fact(u)/fact(i-2*r-2*u);
+
+    cout <<"i,r,u,t1 " <<i<<r<<u<<qq<<endl;
+
   return pow(-1,(double)(i))*binomial_prefactor(i,l1,l2,PAx,PBx)*
     pow(-1,(double)(u))*fact(i)*pow(CPx,(double)(i-2*r-2*u))*
     pow(0.25/gamma,(double)(r+u))/fact(r)/fact(u)/fact(i-2*r-2*u);
@@ -398,6 +588,7 @@ static double *A_array(int l1, int l2, double PA, double PB,
   int Imax,i,r,u,I;
   double *A;
 
+  cout<<"entering A_array,l1,l2,PA,PB,CP,g"<<l1<<l2<<PA<<PB<<CP<<g<<endl;
   Imax = l1+l2+1;
   A = (double *)malloc(Imax*sizeof(double));
   for (i=0; i<Imax; i++) A[i] = 0.;
@@ -405,8 +596,13 @@ static double *A_array(int l1, int l2, double PA, double PB,
     for (r=0; r<floor((double)(i/2))+1;r++)
       for (u=0; u<floor((i-2*r)/2.)+1; u++){
 	I = i-2*r-u;
-	A[I] += A_term(i,r,u,l1,l2,PA,PB,CP,g);
+        double tt5 = A_term(i,r,u,l1,l2,PA,PB,CP,g);
+        cout<<"return Aterm,i,r,u,l1,l2,t1,II"<<endl;
+        cout<<i<<"  "<<r<<"  "<<u<<"  "<<l1<<"  "<<l2<<"  "<<tt5<<"  "<<I<<endl;
+	A[I] +=tt5;
+        cout <<"A[I],I  "<<A[I]<<"  "<<I<<endl;
       }
+  cout<< "leaving Aarray  " <<A[0]<<"  "<<A[1]<<"  "<<A[2]<<endl;
   return A;
 }
 
@@ -425,20 +621,9 @@ static double dist2(double x1, double y1, double z1,
 		    double x2, double y2, double z2){
   return (x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2);
 }
-
-//object rewrite
-static double dist2(Len& a, Len& b){
-  return (a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z);
-}
-
 static double dist(double x1, double y1, double z1,
 		   double x2, double y2, double z2){
   return sqrt(dist2(x1,y1,z1,x2,y2,z2));
-}
-
-//object rewrite
-static double dist(Len& a, Len& b){
-  return sqrt(dist2(a, b));
 }
 
 static double binomial_prefactor(int s, int ia, int ib, double xpa, double xpb){
@@ -554,11 +739,6 @@ static double product_center_1D(double alphaa, double xa,
   return (alphaa*xa+alphab*xb)/(alphaa+alphab);
 }
 
-//object rewrite
-static double product_center_1D(Len& a, Len& b, Len& c, Len& d){
-  return (alphaa*xa+alphab*xb)/(alphaa+alphab);
-}
-
 static double three_center_1D(double xi, int ai, double alphai,
 			      double xj, int aj, double alphaj,
 			      double xk, int ak, double alphak){
@@ -591,58 +771,3 @@ static double three_center_1D(double xi, int ai, double alphai,
   return dx*intgl;
 }
 
-static double Wcalc(double alp){
-	double xterm1,xterm2;
-	double yterm1,yterm2;
-	double zterm1,zterm2,w;
-	double answer;
-	double c = 3.0;
-	double d = 0.0;
-        int rpow =2;
-        int rpow0 =0;
-
-
-  	FORTRANNAME(wqromb)(&c,&rpow,&alp,&answer);                     
-        xterm1 = answer;
-        double t99 = 2.0*xterm1;
-        cout << "xterm1  " << t99 << endl;
-
-
-  	FORTRANNAME(wqromb)(&d,&rpow0,&alp,&answer);                     
-        xterm2 = answer;
-        double t98 = 2.0*xterm2;
-        cout << "xterm2 1d overlap t98 " << t98 << endl;
-
-
-  	FORTRANNAME(wqromb)(&c,&rpow,&alp,&answer);                     
-        yterm1 = answer;
-
-
-  	FORTRANNAME(wqromb)(&d,&rpow0,&alp,&answer);                     
-        yterm2 = answer;
-
-
-  	FORTRANNAME(wqromb)(&c,&rpow,&alp,&answer);                     
-        zterm1 = answer;
-
-
-  	FORTRANNAME(wqromb)(&d,&rpow0,&alp,&answer);                     
-        zterm2 = answer;
-        double t97 = 2.0*yterm1;
-        cout << "yterm1  " << t97 << endl;
-        double t96 = 2.0*yterm2;
-        cout << "yterm2  " << t96 << endl;
-        double t95 = 2.0*zterm1;
-        cout << "zterm1  " << t95 << endl;
-        double t94 = 2.0*zterm2;
-        cout << "zterm2  " << t94 << endl;
-
-        w = 8.0*xterm1*yterm2*zterm2+
-            8.0*xterm2*yterm1*zterm2+
-            8.0*xterm2*yterm2*zterm1;
- 
-        cout << w << " w" << endl; 
-        return w;
-   
-
-}
