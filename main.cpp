@@ -12,6 +12,9 @@
 #include <complex>
 #include <string>
 #include <fstream>
+#include <libmints\mints.h>
+using namespace psi;
+
 #include "InputParser.h"
 
 #define _USE_MATH_DEFINES
@@ -28,7 +31,7 @@ int main(){
 //=============================================================================
 // Initilization (main.f lines 55 - 98)
 //=============================================================================
-
+	IntegralFactory integrals(BasisSet(;
 	InputParser data("input.txt");
 
 	while(auto temp = data.next1()){
@@ -37,6 +40,7 @@ int main(){
 		temp->z /= 0.529177249;
 		data.print1();
 	}	
+	data.reset1(); // reset iterator to beginning
 
 	//do loop at line 75:
 	while(auto temp = data.next2()){		
@@ -44,7 +48,8 @@ int main(){
 		temp->ny /= 0.529177249;
 		temp->nz /= 0.529177249;
 		data.print2();
-	}	
+	}
+	data.reset2();
 
 	data.printBounds();
 
@@ -53,7 +58,6 @@ int main(){
 //=============================================================================
 	
 	//do loop at line 100:
-	data.reset1();
 
 	double t1, t2, t3, t4;
 	while(auto temp = data.next1()){
@@ -61,13 +65,22 @@ int main(){
 		t2 = pow(temp->alpha, (2*temp->l + 2*temp->m + 2*temp->n + 3));
 		t2 = pow(t2, 0.25);
 		t3 = pow((2.0/M_PI), 0.75);
-		t4 = fact2(2*temp->l-1)*fact2(2*temp->m-1)*fact2(2*temp->n-1);
+		//t4 = fact2(2*temp->l-1)*fact2(2*temp->m-1)*fact2(2*temp->n-1);
 		t4 = sqrt(t4);
 	}
 
-		//start at line 111
+	//do loop at line 111
+	data.reset1();
+	
+	vector<SphericalTransform> v;	
+	while(auto temp = data.next1())	v.push_back(SphericalTransform(temp->l));
+	}
+	OverlapInt(SphericalTransform())
+			
 
-
+	
+	
+	
 
 	return 0;
 }
