@@ -23,15 +23,30 @@ using namespace psi;
 typedef std::complex<double> Complex;
 
 enum {MAXBAS=500, MAXSTP=500, MAXBS3=300, MAXNUC=20};
+const char FILENAME[] = "";
 
 //many global variables discarded. will look to declare them as they are used
+
+#define PTR boost::shared_ptr
 
 int main(){
 
 //=============================================================================
 // Initilization (main.f lines 55 - 98)
 //=============================================================================
-	IntegralFactory integrals(BasisSet(;
+	
+	PTR<BasisSetParser> parser(new Gaussian94BasisSetParser());	
+	parser->load_file(FILENAME);
+
+	//These two need actual information; what that is, I don't know.
+	string type;
+	PTR<Molecule> mol;	
+
+	PTR<BasisSet> bs = BasisSet::construct(parser, mol, type);
+	
+	
+	
+	
 	InputParser data("input.txt");
 
 	while(auto temp = data.next1()){
@@ -54,7 +69,7 @@ int main(){
 	data.printBounds();
 
 //=============================================================================
-// Calculate normalization constants (main.f lines 98-183
+// Calculate normalization constants and integrate (main.f lines 98-183
 //=============================================================================
 	
 	//do loop at line 100:
@@ -70,17 +85,46 @@ int main(){
 	}
 
 	//do loop at line 111
+	//can probably use psi4 integrals -- must...learn...how...
 	data.reset1();
+	while(auto temp = data.next1()){}
 	
-	vector<SphericalTransform> v;	
-	while(auto temp = data.next1())	v.push_back(SphericalTransform(temp->l));
-	}
-	OverlapInt(SphericalTransform())
-			
+	//dsyev? line 134
 
+	//skip loop from 136-138
+
+	Complex vint[MAXBAS][MAXBAS];
+	Complex core[MAXBAS][MAXBAS];
 	
-	
-	
+	//loop at 142
+	for (int i=0; i < data.getBounds()->nalp; i++){
+		for (int j=0; j<data.getBounds()->nthet; j++){
+			
+			double r = data.getBounds()->alpstart;
+			double theta = data.getBounds()->thstart;
+			Complex scale(r*cos(theta), r*sin(theta));
+			int nbasis = data.getNBasis();
+
+			for (int k=0; k < nbasis; k++){
+				for (int l=0; l < nbasis; l++){
+					
+					//inner loop at line 160
+					while(auto temp = data.next2()){
+						//psi4 attraction function
+
+						Complex c6(temp->nchg, 0);
+						vint[k][l] = c6 * venergy; // <- output parameter in attract function
+					}
+
+					core[k][l] = scale*scale*tint[k][l]+vint[k][l];
+				}
+			}
+		}
+	}
+
+//=============================================================================
+// Find eigenvalues and eigenvectors (main.f lines 186-253
+//=============================================================================
 
 	return 0;
 }

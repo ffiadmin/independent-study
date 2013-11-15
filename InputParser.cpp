@@ -1,6 +1,6 @@
 #include "InputParser.h"
 
-InputParser::InputParser(string inputFile, string outputFile="output.txt") {
+InputParser::InputParser(string inputFile, string outputFile) {
 	this->fin.open(inputFile);
 	this->fout.open(outputFile);
 
@@ -69,7 +69,7 @@ void InputParser::parseBounds(){
 	this->fin >> bounds->nthet
 		      >> bounds->nalp
 			  >> bounds->alpstart
-			  >> bounds->alpstop
+			  >> bounds->alpstep
 			  >> bounds->thstart
 			  >> bounds->thstep
 			  >> bounds->min

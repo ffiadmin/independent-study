@@ -36,7 +36,7 @@ public:
 	int nthet;
 	int nalp;
 	double alpstart;
-	double alpstop;
+	double alpstep;
 	double thstart;
 	double thstep;
 
@@ -62,12 +62,18 @@ public :
 	void print2();
 	void printBounds();
 
+	//Accessors
+	Bounds* getBounds(){return bounds;}
+	int getNBasis(){return dataSet1RowCount;}
+	
+
 private : 
 	vector<DataSet1*> dataSet1;
 	vector<DataSet1*>::iterator it1;
 	vector<DataSet2*> dataSet2;
 	vector<DataSet2*>::iterator it2;
 	Bounds* bounds;
+	
 	int dataSet1RowCount;
 	int dataSet2RowCount;
 	ifstream fin;
