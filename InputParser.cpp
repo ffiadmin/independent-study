@@ -1,90 +1,89 @@
 #include "InputParser.h"
 
 InputParser::InputParser(string inputFile, string outputFile) {
-	this->fin.open(inputFile);
-	this->fout.open(outputFile);
+	fin.open(inputFile);
+	fout.open(outputFile);	
 
 // The first line of the input file will contain two numbers which indicate
 // the number of rows which make up the next two sets of data
-	this->fin >> this->dataSet1RowCount >> this->dataSet2RowCount;
+	fin >> basisCount >> nucleiCount;
 
-	this->parseDataSet1();
-	this->parseDataSet2();
-	this->parseBounds();
+	parseBasisSets();
+	parseNucleiSets();
+	parseBounds();
+	reset();
 }
 
 InputParser::~InputParser() {
-	this->fin.close();
+	fin.close();
 }
 
-void InputParser::parseDataSet1() {
-	DataSet1* ds;
-	this->dataSet1.resize(this->dataSet1RowCount);
+void InputParser::parseBasisSets() {
+	Basis* p;
+	basisSets.resize(basisCount);
 
 //Read in each of the rows from the text file
-	for (int i = 0; i < this->dataSet1RowCount; ++i) {
-		ds = new DataSet1();
+	for (int i = 0; i < basisCount; ++i) {
+		p = new Basis();
 
-		this->fin >> ds->l
-				  >> ds->m
-				  >> ds->n
-				  >> ds->x
-				  >> ds->y
-				  >> ds->z
-				  >> ds->alpha;
+		fin >> p->l
+				  >> p->m
+				  >> p->n
+				  >> p->x
+				  >> p->y
+				  >> p->z
+				  >> p->alpha;
 
-		this->dataSet1[i] = ds;
+		basisSets[i] = p;
 	}
 
-	dataSet1.push_back(0); // add a null terminator to ease iteration
-	it1 = dataSet1.begin(); //set class iterator to beginning of data set
+	basisSets.push_back(0); // add a null terminator to ease iteration
+	it1 = basisSets.begin(); //set class iterator to beginning of data set
 
 	Manager::msg("So much boom sauce!", OUTPUT_LEVEL_VERBOSE);
 }
 
-void InputParser::parseDataSet2(){
-	DataSet2* ds;
-	dataSet2.resize(dataSet2RowCount);
+void InputParser::parseNucleiSets(){
+	Nuclei* p;
+	nucleiSet.resize(nucleiCount);
 
-	for (int i=0; i < this->dataSet1RowCount; i++){
-		ds = new DataSet2();
+	for (int i=0; i < basisCount; i++){
+		p = new Nuclei();
 
-		this->fin >> ds->nx
-				  >> ds->ny
-				  >> ds->nz
-				  >> ds->nchg;
+		fin >> p->nx
+				  >> p->ny
+				  >> p->nz
+				  >> p->nchg;
 
-		dataSet2[i] = ds;
+		nucleiSet[i] = p;
 	}
 
-	dataSet2.push_back(0); // add a null terminator to ease iteration
-	it2 = dataSet2.begin(); //set class iterator to beginning of data set
+	nucleiSet.push_back(0); // add a null terminator to ease iteration
+	it2 = nucleiSet.begin(); //set class iterator to beginning of data set
 
 	Manager::msg("Boom sauce level 2", OUTPUT_LEVEL_VERBOSE);
 }
 
 void InputParser::parseBounds(){
-	bounds = new Bounds();
-
-	this->fin >> bounds->nthet
-		      >> bounds->nalp
-			  >> bounds->alpstart
-			  >> bounds->alpstep
-			  >> bounds->thstart
-			  >> bounds->thstep
-			  >> bounds->min
-			  >> bounds->max;
+	fin >> thetaCount
+		>> alpCount
+		>> alpStart
+		>> alpStep
+		>> thetaStart
+		>> thetaStep
+		>> min
+		>> max;
 }
 
-void InputParser::print2(){
-	this->fout << (*it2)->nx << ' '
+void InputParser::printNuclei(){
+	fout << (*it2)->nx << ' '
 		       << (*it2)->ny << ' '
 			   << (*it2)->nz << ' '
 			   << (*it2)->nchg << '\n';			
 }
 
-void InputParser::print1(){
-	this->fout << (*it1)->l << ' '
+void InputParser::printBasis(){
+	fout << (*it1)->l << ' '
 		       << (*it1)->m << ' '
 			   << (*it1)->n << ' '
 			   << (*it1)->x << ' '
@@ -100,4 +99,10 @@ void InputParser::printBounds(){
 	fout << "\nThe program will take " << bounds->nalp << " steps.";
 	fout << "\nEach step in r will be " << bounds->alpstep << " au";
 	fout << "\nThe range for the real part of the energy is from " << bounds->min << " to " << bounds->max;
+}
+
+void InputParser::reset(){
+	it1 = basisSets.begin(); 
+	it2 = nucleiSet.begin(); 
+	currentAlp = currentTheta = currentBasis = 0;
 }

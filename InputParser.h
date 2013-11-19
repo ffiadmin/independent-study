@@ -12,7 +12,17 @@ using std::ofstream;
 using std::string;
 using std::vector;
 
-struct DataSet1 {
+//needs some overloads -- check old code from COMP 220
+struct complex
+{
+	complex():real(0), imag(0){}
+	complex(double d) : real(d), imag(0){}
+	complex(double r, double i) : real(r), imag(i){}
+	double real, imag;
+}
+
+
+struct Basis {
 public : 
 	int l;
 	int m;
@@ -21,9 +31,11 @@ public :
 	double y;
 	double z;
 	double alpha;
+	double norm;
+	complex eigenValue;
 };
 
-struct DataSet2 {
+struct Nuclei {
 public:
 	double nx;
 	double ny;
@@ -31,59 +43,65 @@ public:
 	double nchg;
 };
 
-struct Bounds {
-public:	
-	int nthet;
-	int nalp;
-	double alpstart;
-	double alpstep;
-	double thstart;
-	double thstep;
-
-	double min;
-	double max;
-};
 
 class InputParser {
 public : 
 	InputParser(string inputFile, string outputFile = "output.txt");
 	~InputParser();
 
-// returns the next data set in the vector and increments the iterator
-	//if there are no more data sets, returns 0 
-	//(desired use: while (temp = dataset.next()){} )
-	DataSet1* next1(){ return *(it1++); }
-	void reset1() { it1 = dataSet1.begin(); }	
+	//Iterate
+	Basis* nextBasis()		{return *(it1++);}
+	Nuclei* nextCharge()	{return *(it2++);}
+	bool moreAlp()			{return currentAlp++ < alpCount;}
+	bool moreTheta()		{return currentTheta++ < thetaCount;}
+	bool moreBasis()		{return currentBasis++ < basisCount;}
+	bool moreNuclei()		{return currentNuclei++ < nucleiCount;}
 
-	DataSet2* next2(){ return *(it2++); }
-	void reset2() { it2 = dataSet2.begin(); }	
+	//Reset iterators and incremetors
+	void reset();	
 
-	void print1();
-	void print2();
+	//Print
+	void printBasis();
+	void printNuclei();
 	void printBounds();
 
-	//Accessors
-	Bounds* getBounds(){return bounds;}
-	int getNBasis(){return dataSet1RowCount;}
+	//Public local variables
+	int basisCount;
+	int nucleiCount;
+	int thetaCount;
+	int alpCount;
+	double alpStart;
+	double alpStep;
+	double thetaStart;
+	double thetaStep;
+	double min;
+	double max;
+
+	//Access start and end iterators
+	vector<Basis*>::iterator basisBegin() {return basisSets.begin();}
+	vector<Basis*>::iterator basisEnd() {return basisSets.end();}
+	vector<Nuclei*>::iterator nucleiBegin() {return nucleiSet.begin();}
+	vector<Nuclei*>::iterator nucleiEnd() {return nucleiSet.begin();}
 	
 
 private : 
-	vector<DataSet1*> dataSet1;
-	vector<DataSet1*>::iterator it1;
-	vector<DataSet2*> dataSet2;
-	vector<DataSet2*>::iterator it2;
-	Bounds* bounds;
-	
-	int dataSet1RowCount;
-	int dataSet2RowCount;
+	//File streams
 	ifstream fin;
 	ofstream fout;
 	
-	void parseDataSet1();
-	void parseDataSet2();
+	//Parsing functions
+	void parseBasisSets();
+	void parseNucleiSets();
 	void parseBounds();
-
 	
+	//Data storage
+	vector<Basis*> basisSets;	
+	vector<Nuclei*> nucleiSet;	
+
+	//Iteration
+	int currentAlp, currentTheta, currentBasis, currentNuclei; 	//used to iterate over alp and theta
+	vector<Basis*>::iterator it1;
+	vector<Nuclei*>::iterator it2;
 };
 
 #endif
