@@ -23,7 +23,7 @@ using namespace psi;
 typedef std::complex<double> Complex;
 
 enum {MAXBAS=500, MAXSTP=500, MAXBS3=300, MAXNUC=20};
-const char FILENAME[] = "";
+const char FILENAME[] = "input.txt"";
 
 //many global variables discarded. will look to declare them as they are used
 
@@ -47,7 +47,7 @@ int main(){
 	
 	//Homebrew attempt
 
-	InputParser data("input.txt");
+	InputParser data(FILENAME);
 
 	while(auto temp = data.nextBasis()){
 		temp->x /= 0.529177249;
@@ -61,7 +61,7 @@ int main(){
 		temp->nx /= 0.529177249;
 		temp->ny /= 0.529177249;
 		temp->nz /= 0.529177249;
-		data.printCharge();
+		data.printNuclei();
 	}
 	data.reset(); //reset iterators
 
@@ -185,7 +185,12 @@ int main(){
 			}
 		}
 
-		//print alpreal, angmin, etamin, valmin, ermin;
+		data.print(alpReal);
+		data.print(angmin);
+		data.print(etamin);
+		data.print(valmin);
+		data.print(ermin);
+		data.print('\n');
 
 		alpReal += data.alpStep;
 	}

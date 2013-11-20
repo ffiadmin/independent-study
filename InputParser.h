@@ -64,6 +64,9 @@ public :
 	void printBasis();
 	void printNuclei();
 	void printBounds();
+	
+	template<class T>
+	void print(T output) {fout << output << ' ';}
 
 	//Public local variables
 	int basisCount;
