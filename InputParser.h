@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include "Complex.h"
 
 #include "Manager.h"
 
@@ -11,15 +12,6 @@ using std::ifstream;
 using std::ofstream;
 using std::string;
 using std::vector;
-
-//needs some overloads -- check old code from COMP 220
-struct complex
-{
-	complex():real(0), imag(0){}
-	complex(double d) : real(d), imag(0){}
-	complex(double r, double i) : real(r), imag(i){}
-	double real, imag;
-}
 
 
 struct Basis {
@@ -32,7 +24,7 @@ public :
 	double z;
 	double alpha;
 	double norm;
-	complex eigenValue;
+	Complex eigenValue;
 };
 
 struct Nuclei {

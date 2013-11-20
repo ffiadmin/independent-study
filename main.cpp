@@ -9,7 +9,7 @@
  */
 
 #include <iostream>
-#include <complex>
+#include <Complex>
 #include <string>
 #include <fstream>
 #include <libmints\mints.h>
@@ -20,10 +20,10 @@ using namespace psi;
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-typedef std::complex<double> Complex;
+typedef std::Complex<double> Complex;
 
 enum {MAXBAS=500, MAXSTP=500, MAXBS3=300, MAXNUC=20};
-const char FILENAME[] = "input.txt"";
+const char FILENAME[] = "input.txt";
 
 //many global variables discarded. will look to declare them as they are used
 
@@ -90,7 +90,7 @@ int main(){
 	double r1; //What is this?
 	int i=0, j=0;
 
-	complex tint[500][500];
+	Complex tint[500][500];
 	double squareMatrix[500][500];
 	auto it1 = data.basisBegin();
 	do{		
@@ -99,7 +99,7 @@ int main(){
 			double overlap = calculateOverlap(*it1, *it2);
 			double kineticEnergy = calculateKineticEnergy(*it1, *it2);
 			squareMatrix[i][j] = (*it1)->norm * (*it2)->norm * overlap;
-			tint[i][j] = complex((*it1)->norm * (*it2)->norm * overlap, kineticEnergy);
+			tint[i][j] = Complex((*it1)->norm * (*it2)->norm * overlap, kineticEnergy);
 		}while(++it2 != data.basisEnd());
 		i++; j=0;
 	}while(++it1 != data.basisEnd());	
@@ -109,10 +109,10 @@ int main(){
 	//skip loop from 136-138
 
 	data.reset();
-	complex vint[MAXBAS][MAXBAS];
-	complex core[MAXBAS][MAXBAS];	
-	complex xmat[MAXBAS][MAXBAS];
-	complex scale;
+	Complex vint[MAXBAS][MAXBAS];
+	Complex core[MAXBAS][MAXBAS];	
+	Complex xmat[MAXBAS][MAXBAS];
+	Complex scale;
 	
 	//loop at 142
 	i=0, j=0;
@@ -124,7 +124,7 @@ int main(){
 		{			
 			double rr1 = alpReal * cos(theta);
 			double rr2 = -alpReal * sin(theta);
-			scale = complex(rr1, rr2);
+			scale = Complex(rr1, rr2);
 
 			auto it1 = data.basisBegin();
 			do{		
@@ -132,15 +132,15 @@ int main(){
 				do{	
 					auto it3 = data.nucleiBegin();
 					do{
-						complex venergy = calculatAttraction(*it1, *it2, *it3);
-						vint[i][j] = vint[i][j] + complex((*it3)->nchg,0) * venergy;
+						Complex venergy = calculatAttraction(*it1, *it2, *it3);
+						vint[i][j] = vint[i][j] + Complex((*it3)->nchg,0) * venergy;
 
 					}while(++it3 != data.nucleiEnd());
 				
 					core[i][j] = scale * scale * tint[i][j] + vint[i][j];
 					
 					//extra loop from 186-193 moved inside this loop
-					xmat[i][j] = complex(squareMatrix[i][j]/sqrt(svec[j])); //svec must be set in a call to dsyev
+					xmat[i][j] = Complex(squareMatrix[i][j]/sqrt(svec[j])); //svec must be set in a call to dsyev
 					xmat[j][i] = xmat[i][j];
 				
 				}while(++it2 != data.basisEnd());
@@ -160,7 +160,7 @@ int main(){
 			//do loop at 204
 			auto it1 = data.basisBegin();
 			do{
-				complex temp = ((*it1)->eigenValue *= 27.2114);
+				Complex temp = ((*it1)->eigenValue *= 27.2114);
 				if (temp.real < data.min || temp.real > data.max) continue;
 				eta[nscan] = scale;
 				val[nscan] = temp;
