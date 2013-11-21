@@ -44,10 +44,6 @@ public :
 	//Iterate
 	Basis* nextBasis()		{return *(it1++);}
 	Nuclei* nextCharge()	{return *(it2++);}
-	bool moreAlp()			{return currentAlp++ < alpCount;}
-	bool moreTheta()		{return currentTheta++ < thetaCount;}
-	bool moreBasis()		{return currentBasis++ < basisCount;}
-	bool moreNuclei()		{return currentNuclei++ < nucleiCount;}
 
 	//Reset iterators and incremetors
 	void reset();	
@@ -76,8 +72,7 @@ public :
 	vector<Basis*>::iterator basisBegin() {return basisSets.begin();}
 	vector<Basis*>::iterator basisEnd() {return basisSets.end();}
 	vector<Nuclei*>::iterator nucleiBegin() {return nucleiSet.begin();}
-	vector<Nuclei*>::iterator nucleiEnd() {return nucleiSet.begin();}
-	
+	vector<Nuclei*>::iterator nucleiEnd() {return nucleiSet.begin();}	
 
 private : 
 	//File streams

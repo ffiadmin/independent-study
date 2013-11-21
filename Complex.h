@@ -18,6 +18,9 @@ public:
 	Complex(double r, double i){real = r; imag = i;}
 	Complex(double real_part){real = real_part; imag = 0;}
 
+	Complex& operator=(const Complex& rComp);
+	Complex& operator+=(const Complex& rComp);
+
 	friend ostream& operator<<(ostream& out, const Complex& num);
 	friend istream& operator>>(istream& in, Complex& num);
 

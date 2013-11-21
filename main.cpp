@@ -115,17 +115,18 @@ int main(){
 	Complex scale;
 	
 	//loop at 142
-	i=0, j=0;
+	
 	double alpReal = data.alpStart;	
-	while(data.moreAlp())
+	for(int k=0; k<data.alpCount; k++)
 	{
 		double theta = data.thetaStart;
-		while (data.moreTheta())
+		for(int m=0; m<data.alpCount; m++)
 		{			
 			double rr1 = alpReal * cos(theta);
 			double rr2 = -alpReal * sin(theta);
 			scale = Complex(rr1, rr2);
 
+			i=0, j=0;
 			auto it1 = data.basisBegin();
 			do{		
 				auto it2 = data.basisBegin();
@@ -133,7 +134,7 @@ int main(){
 					auto it3 = data.nucleiBegin();
 					do{
 						Complex venergy = calculatAttraction(*it1, *it2, *it3);
-						vint[i][j] = vint[i][j] + Complex((*it3)->nchg,0) * venergy;
+						vint[i][j] = vint[i][j] + Complex((*it3)->nchg) * venergy;
 
 					}while(++it3 != data.nucleiEnd());
 				

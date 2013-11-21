@@ -43,3 +43,15 @@ Complex operator*(const Complex& first, const Complex& second){
 bool operator==(const Complex& first, const Complex& second){
 	return (first.real == second.real && first.imag == second.imag);
 }
+
+Complex& Complex::operator=(const Complex& rComp){
+	imag = rComp.imag;
+	real = rComp.real;
+	return *this;
+}
+
+Complex& Complex::operator+=(const Complex& rComp){
+	imag += rComp.imag;
+	real += rComp.real;
+	return *this;
+}
