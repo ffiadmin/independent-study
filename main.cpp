@@ -12,22 +12,18 @@
 #include <Complex>
 #include <string>
 #include <fstream>
-#include <libmints\mints.h>
-using namespace psi;
 
-#include "InputParser.h"
+//#include <libmints\mints.h>
+//using namespace psi;
 
-#define _USE_MATH_DEFINES
-#include <math.h>
-
-typedef std::Complex<double> Complex;
+#include "helpers.h"
 
 enum {MAXBAS=500, MAXSTP=500, MAXBS3=300, MAXNUC=20};
 const char FILENAME[] = "input.txt";
 
 //many global variables discarded. will look to declare them as they are used
 
-#define PTR boost::shared_ptr
+//#define PTR boost::shared_ptr
 
 int main(){
 
@@ -133,7 +129,7 @@ int main(){
 				do{	
 					auto it3 = data.nucleiBegin();
 					do{
-						Complex venergy = calculatAttraction(*it1, *it2, *it3);
+						Complex venergy = calculateAttraction(*it1, *it2, *it3);
 						vint[i][j] = vint[i][j] + Complex((*it3)->nchg) * venergy;
 
 					}while(++it3 != data.nucleiEnd());
@@ -197,7 +193,7 @@ int main(){
 	}
 
 	//END line 253
-	//Function library begins
+	//Function library moved to functions.h
 
 	return 0;
 }
