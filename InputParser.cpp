@@ -93,12 +93,12 @@ void InputParser::printBasis(){
 }
 
 void InputParser::printBounds(){
-	fout << "\nThe initial values for r and theta are " << bounds->alpstart << " and " << bounds->thstart;
-	fout << "\nThe program will take " << bounds->nthet << " steps.";
-	fout << "\nEach step in theta will be " << bounds->thstep << " radians.";
-	fout << "\nThe program will take " << bounds->nalp << " steps.";
-	fout << "\nEach step in r will be " << bounds->alpstep << " au";
-	fout << "\nThe range for the real part of the energy is from " << bounds->min << " to " << bounds->max;
+	fout << "\nThe initial values for r and theta are " << alpStart << " and " << thetaStart;
+	fout << "\nThe program will take " << thetaCount << " steps.";
+	fout << "\nEach step in theta will be " << thetaStep << " radians.";
+	fout << "\nThe program will take " << alpCount << " steps.";
+	fout << "\nEach step in r will be " << alpStep << " au";
+	fout << "\nThe range for the real part of the energy is from " << min << " to " << max;
 }
 
 void InputParser::reset(){

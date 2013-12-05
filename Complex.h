@@ -20,13 +20,16 @@ public:
 
 	Complex& operator=(const Complex& rComp);
 	Complex& operator+=(const Complex& rComp);
+	Complex& operator*=(const Complex rComp);
 
 	friend ostream& operator<<(ostream& out, const Complex& num);
 	friend istream& operator>>(istream& in, Complex& num);
 
 	friend Complex operator+(const Complex& first, const Complex& second);
 	friend Complex operator-(const Complex& first, const Complex& second);
-	friend Complex operator*(const Complex& first, const Complex&  second);	
+	friend Complex operator*(const Complex& first, const Complex& second);	
+	friend Complex operator/(const Complex& first, const Complex& second);	
+	
 	
 	friend bool operator==(const Complex& first, const Complex& second);	
 

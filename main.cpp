@@ -115,8 +115,11 @@ int main(){
 	double alpReal = data.alpStart;	
 	for(int k=0; k<data.alpCount; k++)
 	{
+		Complex eta[MAXSTP], val[MAXSTP];
+		double ang[MAXSTP];
+
 		double theta = data.thetaStart;
-		for(int m=0; m<data.alpCount; m++)
+		for(int nscan=0; nscan<data.alpCount; nscan++)
 		{			
 			double rr1 = alpReal * cos(theta);
 			double rr2 = -alpReal * sin(theta);
@@ -149,13 +152,14 @@ int main(){
 //=============================================================================
 		
 			//function calls at 195
-			zgemm('N','N',nbasis,nbasis,nbasis,XX1,core,maxbas,xmat,maxbas,XX2,xtmp,maxbas)
-			zgemm('N','N',nbasis,nbasis,nbasis,XX1,xmatx,maxbas,xtmp,maxbas,XX2,core,maxbas)
-			zgeev('V','V',nbasis,core,maxbas,eigval,VL,maxbas,VR,maxbas,work,maxbs3,rwork,info)
+			zgemm('N','N',nbasis,nbasis,nbasis,XX1,core,maxbas,xmat,maxbas,XX2,xtmp,maxbas);
+			zgemm('N','N',nbasis,nbasis,nbasis,XX1,xmatx,maxbas,xtmp,maxbas,XX2,core,maxbas);
+			zgeev('V','V',nbasis,core,maxbas,eigval,VL,maxbas,VR,maxbas,work,maxbs3,rwork,info);
 			//the above functions must populate each Basis set with an eigenvalue
 
 			//do loop at 204
-			auto it1 = data.basisBegin();
+
+			it1 = data.basisBegin();
 			do{
 				Complex temp = ((*it1)->eigenValue *= 27.2114);
 				if (temp.real < data.min || temp.real > data.max) continue;
@@ -163,19 +167,20 @@ int main(){
 				val[nscan] = temp;
 				ang[nscan] = theta;	
 
-			}while (it1++ != data.basisEnd());
+			}while (++it1 != data.basisEnd());
 
 			theta += data.thetaStep;
 		}
 
-		double dermin = 1;
+		double derivedMin = 1, angmin;
+		Complex valmin, etamin, deriv[MAXSTP];
 		for (int i=0; i<data.thetaCount-1; i++)
 		{
 			deriv[i] = (val[i+1] - val[i])/(eta[i+1] - eta[i]);
-			double derMagnitude = (deriv[i].real * deriv[i].imag);
-			if (derMagnitude < dermin)
+			double derivedMagnitude = (deriv[i].real * deriv[i].imag);
+			if (derivedMagnitude < derivedMin)
 			{
-				dermin = derMagnitude;
+				derivedMin = derivedMagnitude;
 				etamin = eta[i];
 				valmin = val[i];
 				angmin = ang[i];
@@ -186,7 +191,7 @@ int main(){
 		data.print(angmin);
 		data.print(etamin);
 		data.print(valmin);
-		data.print(ermin);
+		data.print(derivedMin);
 		data.print('\n');
 
 		alpReal += data.alpStep;

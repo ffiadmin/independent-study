@@ -40,6 +40,17 @@ Complex operator*(const Complex& first, const Complex& second){
 	return Complex(r, im);
 }
 
+Complex operator/(const Complex& first, const Complex second)
+{
+	double div=(second.real*second.real) + (second.imag*second.imag);
+    Complex tmp;
+    tmp.real=(first.real*second.real)+(first.imag*second.imag);
+    tmp.real/=div;
+    tmp.imag=(first.imag*second.real)-(first.real*second.imag);
+    tmp.imag/=div;
+    return tmp;
+}
+
 bool operator==(const Complex& first, const Complex& second){
 	return (first.real == second.real && first.imag == second.imag);
 }
@@ -53,5 +64,10 @@ Complex& Complex::operator=(const Complex& rComp){
 Complex& Complex::operator+=(const Complex& rComp){
 	imag += rComp.imag;
 	real += rComp.real;
+	return *this;
+}
+
+Complex& Complex::operator*=(const Complex rComp){
+	*this = *this * rComp;
 	return *this;
 }
