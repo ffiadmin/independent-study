@@ -40,14 +40,14 @@ void InputParser::parseBasisSets() {
 	basisSets.push_back(0); // add a null terminator to ease iteration
 	it1 = basisSets.begin(); //set class iterator to beginning of data set
 
-	Manager::msg("So much boom sauce!", OUTPUT_LEVEL_VERBOSE);
+	//Manager::msg("So much boom sauce!", OUTPUT_LEVEL_VERBOSE);
 }
 
 void InputParser::parseNucleiSets(){
 	Nuclei* p;
 	nucleiSet.resize(nucleiCount);
 
-	for (int i=0; i < basisCount; i++){
+	for (int i=0; i < nucleiCount; i++){
 		p = new Nuclei();
 
 		fin >> p->nx
@@ -61,7 +61,7 @@ void InputParser::parseNucleiSets(){
 	nucleiSet.push_back(0); // add a null terminator to ease iteration
 	it2 = nucleiSet.begin(); //set class iterator to beginning of data set
 
-	Manager::msg("Boom sauce level 2", OUTPUT_LEVEL_VERBOSE);
+	//Manager::msg("Boom sauce level 2", OUTPUT_LEVEL_VERBOSE);
 }
 
 void InputParser::parseBounds(){

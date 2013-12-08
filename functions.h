@@ -19,6 +19,10 @@
 #include <fstream>
 using namespace std;
 
+#if defined(_WIN32)
+double lgamma(double x);
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -238,91 +242,120 @@ static double *A_array(int l1, int l2, double PA, double PB,
 } 
 
 
-    
-//static double nuclear_attraction(double x1, double y1, double z1, double norm1,
-//				 int l1, int m1, int n1, double alpha1,
-//				 double x2, double y2, double z2, double norm2,
-//				 int l2, int m2, int n2, double alpha2,
-//				 double x3, double y3, double z3){
-//  int I,J,K;
-//  double gamma,xp,yp,zp,sum,rab2,rcp2;
-//  double *Ax,*Ay,*Az;
-//
-//  gamma = alpha1+alpha2;
-//
-//  xp = product_center_1D(alpha1,x1,alpha2,x2);
-//  yp = product_center_1D(alpha1,y1,alpha2,y2);
-//  zp = product_center_1D(alpha1,z1,alpha2,z2);
-//
-//  rab2 = dist2(x1,y1,z1,x2,y2,z2);
-//  rcp2 = dist2(x3,y3,z3,xp,yp,zp);
-//
-//  Ax = A_array(l1,l2,xp-x1,xp-x2,xp-x3,gamma);
-//  Ay = A_array(m1,m2,yp-y1,yp-y2,yp-y3,gamma);
-//  Az = A_array(n1,n2,zp-z1,zp-z2,zp-z3,gamma);
-//
-//  sum = 0.;
-//  for (I=0; I<l1+l2+1; I++)
-//    for (J=0; J<m1+m2+1; J++)
-//      for (K=0; K<n1+n2+1; K++)
-//  cout<< "Ax,Ay,Az  "<<I<<J<<K<<Ax[I]<<Ay[J]<<Az[K]<<endl;
-//	sum += Ax[I]*Ay[J]*Az[K]*Fgamma(I+J+K,rcp2*gamma);
-//  cout <<"sum  "<<sum<<endl;
-//  free(Ax);
-//  free(Ay);
-//  free(Az);
-//  return -norm1*norm2*
-//    2*M_PI/gamma*exp(-alpha1*alpha2*rab2/gamma)*sum;
-//}
+    //missing Fgamma
+static double nuclear_attraction(double x1, double y1, double z1, double norm1,
+				 int l1, int m1, int n1, double alpha1,
+				 double x2, double y2, double z2, double norm2,
+				 int l2, int m2, int n2, double alpha2,
+				 double x3, double y3, double z3){
+  int I,J,K;
+  double gamma,xp,yp,zp,sum,rab2,rcp2;
+  double *Ax,*Ay,*Az;
 
-//
-//static void gser(double *gamser, double a, double x, double *gln){
-//  int n;
-//  double sum,del,ap;
-//
-//  *gln=lgamma(a);
-//  if (x <= 0.0) {
-//    assert(x>=0.);
-//    *gamser=0.0;
-//    return;
-//  } else {
-//    ap=a;
-//    del=sum=1.0/a;
-//    for (n=1;n<=ITMAX;n++) {
-//      ++ap;
-//      del *= x/ap;
-//      sum += del;
-//      if (fabs(del) < fabs(sum)*EPS) {
-//	*gamser=sum*exp(-x+a*log(x)-(*gln));
-//	return;
-//      }
-//    }
-//    printf("a too large, ITMAX too small in routine gser");
-//    return;
-//  }
-//}
+  gamma = alpha1+alpha2;
 
-//static double gamm_inc(double a, double x){ /* Taken from NR routine gammap */
-//  double gamser,gammcf,gln;
-//  
-//  assert (x >= 0.);
-//  assert (a > 0.);
-//  if (x < (a+1.0)) {
-//    gser(&gamser,a,x,&gln);
-//    return exp(gln)*gamser;
-//  } else {
-//    gcf(&gammcf,a,x,&gln);
-//    return exp(gln)*(1.0-gammcf);
-//  }
-//}
+  xp = product_center_1D(alpha1,x1,alpha2,x2);
+  yp = product_center_1D(alpha1,y1,alpha2,y2);
+  zp = product_center_1D(alpha1,z1,alpha2,z2);
 
-//static double Fgamma(double m, double x){
-//  double val;
-//  if (fabs(x) < SMALL) x = SMALL;
-//  val = gamm_inc(m+0.5,x);
-//  /* if (val < SMALL) return 0.; */ /* Gives a bug for D orbitals. */
-//  return 0.5*pow(x,-m-0.5)*val; 
-//}
+  rab2 = dist2(x1,y1,z1,x2,y2,z2);
+  rcp2 = dist2(x3,y3,z3,xp,yp,zp);
+
+  Ax = A_array(l1,l2,xp-x1,xp-x2,xp-x3,gamma);
+  Ay = A_array(m1,m2,yp-y1,yp-y2,yp-y3,gamma);
+  Az = A_array(n1,n2,zp-z1,zp-z2,zp-z3,gamma);
+
+  sum = 0.;
+  for (I=0; I<l1+l2+1; I++)
+    for (J=0; J<m1+m2+1; J++)
+      for (K=0; K<n1+n2+1; K++)
+  cout<< "Ax,Ay,Az  "<<I<<J<<K<<Ax[I]<<Ay[J]<<Az[K]<<endl;
+	sum += Ax[I]*Ay[J]*Az[K]*Fgamma(I+J+K,rcp2*gamma);
+  cout <<"sum  "<<sum<<endl;
+  free(Ax);
+  free(Ay);
+  free(Az);
+  return -norm1*norm2*
+    2*M_PI/gamma*exp(-alpha1*alpha2*rab2/gamma)*sum;
+}
+
+static double Fgamma(double m, double x){
+  double val;
+  if (fabs(x) < SMALL) x = SMALL;
+  val = gamm_inc(m+0.5,x);
+  /* if (val < SMALL) return 0.; */ /* Gives a bug for D orbitals. */
+  return 0.5*pow(x,-m-0.5)*val; 
+}
+
+static double gamm_inc(double a, double x){ /* Taken from NR routine gammap */
+  double gamser,gammcf,gln;
+  
+  assert (x >= 0.);
+  assert (a > 0.);
+  if (x < (a+1.0)) {
+    gser(&gamser,a,x,&gln);
+    return exp(gln)*gamser;
+  } else {
+    gcf(&gammcf,a,x,&gln);
+    return exp(gln)*(1.0-gammcf);
+  }
+}
+
+static void gcf(double *gammcf, double a, double x, double *gln){
+  int i;
+  double an,b,c,d,del,h;
+  
+  *gln=lgamma(a);
+  b=x+1.0-a;
+  c=1.0/FPMIN;
+  d=1.0/b;
+  h=d;
+  for (i=1;i<=ITMAX;i++) {
+    an = -i*(i-a);
+    b += 2.0;
+    d=an*d+b;
+    if (fabs(d) < FPMIN) d=FPMIN;
+    c=b+an/c;
+    if (fabs(c) < FPMIN) c=FPMIN;
+    d=1.0/d;
+    del=d*c;
+    h *= del;
+    if (fabs(del-1.0) < EPS) break;
+  }
+  assert(i<=ITMAX);
+  *gammcf=exp(-x+a*log(x)-(*gln))*h;
+}
+
+//missing identifiers: lgamma
+static void gser(double *gamser, double a, double x, double *gln){
+  int n;
+  double sum,del,ap;
+
+  *gln=lgamma(a);
+  if (x <= 0.0) {
+    assert(x>=0.);
+    *gamser=0.0;
+    return;
+  } else {
+    ap=a;
+    del=sum=1.0/a;
+    for (n=1;n<=ITMAX;n++) {
+      ++ap;
+      del *= x/ap;
+      sum += del;
+      if (fabs(del) < fabs(sum)*EPS) {
+	*gamser=sum*exp(-x+a*log(x)-(*gln));
+	return;
+      }
+    }
+    printf("a too large, ITMAX too small in routine gser");
+    return;
+  }
+}
+
+
+
+
 
 //static double coulomb_repulsion(double xa, double ya, double za, double norma,
 //				int la, int ma, int na, double alphaa,
