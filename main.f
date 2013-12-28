@@ -1,34 +1,386 @@
-c     **** main routine for complex coordinate rotation
-c     **** uses integrals fromPRA vol 20 page 814 1979
-c     **** uses standard intgral formulas for gto's
-      
-      EXTERNAL gtest
-      EXTERNAL fact2
-      EXTERNAL fct
-      EXTERNAL OL1D  
-      EXTERNAL PBINM 
-      EXTERNAL BIN 
-
-      integer maxbas,maxnuc
+c     Memory allocation parameters
+      integer maxbas, maxnuc
       parameter (maxstp=500)
-      parameter (maxbas=150)
-      parameter (maxbs3=450)
+      parameter (maxbas=100)
+      parameter (maxbs3=300)
       parameter (maxnuc=20)
+      
+c     Assign the "nbasis" variable to "static" memory
+      integer nbasis
+      common /basis_static/ nbasis
+      
+c     Assign the "nbasis" coordinate variables to "static" memory
+      integer l(maxbas), m(maxbas), n(maxbas)
+      double precision alpha(maxbas), x(maxbas), y(maxbas), z(maxbas)
+      common /basis_coord_static/ alpha, l, m, n, x, y, z
+      
+c     Assign the "nnuc" variable to "static" memory
+      integer nnuc
+      common /nucleus_static/ nnuc
+      
+c     Assign the "nnuc" coordinate variable to "static" memory
+      double precision nchg(maxnuc), nx(maxnuc), ny(maxnuc), nz(maxnuc)
+      common /nucleus_coord_static/ nchg, nx, ny, nz
+      
+c     Assign additional program parameters to "static" memory
+      integer max, min, nalp, nthet
+      double precision alpstp, alpstrt, thstart, thstep
+      common /param_static/ alpstp, alpstrt, max, min, nalp, nthet,
+     +thstart, thstep
+     
+cc
+c     Initialization
+c     ---------------------------------
+c
+     
+      call setNBasis(5)
 
-      double precision alpha(maxbas),
-     + x(maxbas),y(maxbas),z(maxbas),
-     + nchg(maxnuc),nx(maxnuc),ny(maxnuc),nz(maxnuc),
-     + PI,t1,t2,t3,t4,norm(maxbas),min,max,fact2
+c     In real life, call this function in a loop
+c     do 10 i = 1, nbasis
+c          call setBasisCoords(i, 1, 2, 3, 4.0D0, 5.0D0, 6.0D0, 7.0D0)
+c10   continue
 
+      call setBasisCoords(1, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
+     +0.190236205409D2)
+      call setBasisCoords(2, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
+     +0.100124318636D2)
+      call setBasisCoords(3, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
+     +0.526970098087D1)
+      call setBasisCoords(4, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
+     +0.277352683204D1)
+      call setBasisCoords(5, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
+     +0.145975096423D1)
+      
+      call setNNuc(3)
+
+c     In real life, call this function in a loop
+c     do 20 i = 1,nnuc
+c          call setNucleusCoords(i, 1.0D0, 2.0D0, 3.0D0, 4.0D0)
+c20   continue
+
+      call setNucleusCoords(1, 0.0D0, 0.0D0, 0.0D0, 2.0D0)
+      call setNucleusCoords(2, 0.0D0, 0.0D0, 0.4120D0, -1.0D0)
+      call setNucleusCoords(3, 0.0D0, 0.0D0, -0.4120D0, -1.0D0)
+      
+      call setFinalParams(1, 1, 1.000D0, 0.00D0, 0.000D0, 0.00D0, 
+     + -100, 1000000)
+     
+      call go()
+      stop
+      end
+      
+cc
+c     Function library, section by Oliver Spryn
+c     ------------------------------------------------------------------
+c
+      
+cc
+c     Set the value of the "nbasis" variable. The "nbasis"
+c     variable is responsible for configuring the number of
+c     basis functions.
+c     
+c     PRECONDITION:  C++ has opened an input text file.
+c     POSTCONDITION: The "nbasis" variable will have been set.
+c
+c     REPLACES IN ORIGINAL PROGRAM:
+c
+c         read(5,*)nbasis
+c         write(6,*) 'there are  ',nbasis,'  basis functions'
+c
+c     @access public
+c     @param  integer value The value to assign to "nbasis"
+c     @return void
+c     @since  1.0.0
+c
+
+      subroutine setNBasis(value)
+c     Import variables from "static" memory
+          integer nbasis
+          common /basis_static/ nbasis
+          
+c     Assign the subroutine parameter a type
+          integer value
+          
+c     Assign "nbasis" its value
+          nbasis = value
+          
+c     Alert the user of the program's progress
+          print *, "There are", nbasis, " basis functions."
+      end
+      
+cc
+c     Set the coordinates for each of the nbasis values. The
+c     "nbasis" value must have already been set. This is
+c     designed to assign each of these values a coordinate.
+c
+c     The index (idx parameter) is NOT ZERO BASED!!! To access
+c     the first element in a Fortran array, use array(1). Keep
+c     that in mind when assigning this parameter a value. Thus,
+c     the values passed into this parameter will range from:
+c     1 ... nbasis, inclusive.
+c
+c     PRECONDITION:  setNBasis() has been called.
+c     POSTCONDITION: Each nbasis value will have been assigned
+c                    a set of coordinates
+c
+c     REPLACES IN ORIGINAL PROGRAM:
+c
+c         read(5,*)l(i),m(i),n(i),x(i),y(i),z(i),alpha(i)
+c         x(i) = x(i)/0.529177249
+c         y(i) = y(i)/0.529177249
+c         z(i) = z(i)/0.529177249
+c         write(6,*)l(i),m(i),n(i),x(i),y(i),z(i),alpha(i)
+c     
+c     @access public
+c     @param  integer          idx      The index of the nbasis to assign these coordinates
+c     @param  integer          lVal
+c     @param  integer          mVal
+c     @param  integer          nVal
+c     @param  double precision xVal
+c     @param  double precision yVal
+c     @param  double precision zVal
+c     @param  double precision alphaVal
+c     @return void
+c     @since  1.0.0
+c
+
+      subroutine setBasisCoords(idx, lVal, mVal, nVal, xVal,
+     +yVal, zVal, alphaVal)
+c     Import variables and arrays from "static" memory
+          integer maxbas
+          parameter (maxbas=100)
+          
+          integer l(maxbas), m(maxbas), n(maxbas)
+          double precision alpha(maxbas), x(maxbas), y(maxbas),
+     +z(maxbas)
+          common /basis_coord_static/ alpha, l, m, n, x, y, z
+          
+c     Assign the subroutine parameters a type
+          integer idx, lVal, mVal, nVal
+          double precision alphaVal, xVal, yVal, zVal
+      
+c     Assign the nbasis index its respective values
+          alpha(idx) = alphaVal
+          l(idx) = lVal
+          m(idx) = mVal
+          n(idx) = nVal
+          x(idx) = xVal
+          y(idx) = yVal
+          z(idx) = zVal
+          
+c     Convert the coordinates from angstroms to au
+          x(idx) = x(idx)/0.529177249
+          y(idx) = y(idx)/0.529177249
+          z(idx) = z(idx)/0.529177249
+          
+c     Alert the user of the program's progress
+          print *, "Assigned the coordinates for nbasis value:", idx
+      end
+      
+cc
+c     Set the value of the "nnuc" variable. The "nnuc"
+c     variable is responsible for configuring the number of
+c     nuclei.
+c
+c     PRECONDITION:  setBasisCoords() has been called.
+c     POSTCONDITION: The "nnuc" variable will have been set.
+c
+c     REPLACES IN ORIGINAL PROGRAM:
+c
+c         read(5,*)nnuc
+c         write(6,*)'there are  ',nnuc,'  nuclei.'
+c     
+c     @access public
+c     @param  integer value The value to assign to "nnuc"
+c     @return void
+c     @since  1.0.0
+c
+
+      subroutine setNNuc(value)
+c     Import variables from "static" memory
+          integer nnuc
+          common /nucleus_static/ nnuc
+          
+c     Assign the subroutine parameter a type
+          integer value
+          
+c     Assign "nnuc" its value
+          nnuc = value
+          
+c     Alert the user of the program's progress
+          print *, "There are", nnuc, " nuclei."
+      end
+
+cc
+c     Set the coordinates for each of the nnuc values. The
+c     "nnuc" value must have already been set. This is
+c     designed to assign each of these values a coordinate.
+c
+c     The index (idx parameter) is NOT ZERO BASED!!! To access
+c     the first element in a Fortran array, use array(1). Keep
+c     that in mind when assigning this parameter a value. Thus,
+c     the values passed into this parameter will range from:
+c     1 ... nnuc, inclusive.
+c
+c     PRECONDITION:  setNNuc() has been called.
+c     POSTCONDITION: Each nnuc value will have been assigned
+c                    a set of coordinates
+c
+c     REPLACES IN ORIGINAL PROGRAM:
+c
+c         read(5,*)nx(i),ny(i),nz(i),nchg(i)
+c         nx(i) = nx(i)/0.529177249
+c         ny(i) = ny(i)/0.529177249
+c         nz(i) = nz(i)/0.529177249
+c         write(6,*)nx(i),ny(i),nz(i),nchg(i)
+c     
+c     @access public
+c     @param  integer          idx      The index of the nnuc to assign these coordinates
+c     @param  double precision nChgVal
+c     @param  double precision nxVal
+c     @param  double precision nyVal
+c     @param  double precision nzVal
+c     @return void
+c     @since  1.0.0
+c
+
+      subroutine setNucleusCoords(idx, nxVal, nyVal, nzVal, nChgVal)
+c     Import variables and arrays from "static" memory
+          integer maxnuc
+          parameter (maxnuc=20)
+          
+          double precision nchg(maxnuc), nx(maxnuc), ny(maxnuc),
+     +nz(maxnuc)
+          common /nucleus_coord_static/ nchg, nx, ny, nz
+          
+c     Assign the subroutine parameters a type
+          integer idx
+          double precision nChgVal, nxVal, nyVal, nzVal
+      
+c     Assign the nnuc index its respective values
+          nchg(idx) = nChgVal
+          nx(idx) = nxVal
+          ny(idx) = nyVal
+          nz(idx) = nzVal
+          
+c     Convert the coordinates from angstroms to au
+          nx(i) = nx(i)/0.529177249
+          ny(i) = ny(i)/0.529177249
+          nz(i) = nz(i)/0.529177249
+          
+c     Alert the user of the program's progress
+          print *, "Assigned the coordinates for nnuc value:", idx
+      end
+      
+cc
+c     Set the value of the several final parameters to 
+c     configure this program to begin processing.
+c
+c     PRECONDITION:  setNucleusCoords() has been called.
+c     POSTCONDITION: A final set of configuration parameters
+c                    will have been assigned a value.
+c
+c     REPLACES IN ORIGINAL PROGRAM:
+c     
+c         read(5,*)nthet,nalp,alpstrt,alpstp,thstart,thstep
+c         ... several write statements ...
+c         read(5,*)min,max
+c         ... several write statements ...
+c     
+c     @access public
+c     @param  integer          nThetVal
+c     @param  integer          nAlpVal
+c     @param  double precision alpStrtVal
+c     @param  double precision alpStpVal
+c     @param  double precision thStartVal
+c     @param  double precision thStepVal
+c     @param  integer          minVal
+c     @param  integer          maxVal
+c     @return void
+c     @since  1.0.0
+c
+
+      subroutine setFinalParams(nThetVal, nAlpVal, alpStrtVal, 
+     +alpStpVal, thStartVal, thStepVal, minVal, maxVal)
+c     Import variables from "static" memory
+          integer max, min, nalp, nthet
+          double precision alpstp, alpstrt, thstart, thstep
+          common /param_static/ alpstp, alpstrt, max, min, nalp, nthet,
+     +thstart, thstep
+          
+c     Assign the subroutine parameters a type
+          integer maxVal, minVal, nAlpVal, nThetVal
+          double precision alpStpVal, alpStrtVal, thStartVal, thStepVal
+          
+c     Assign the program parameters their respective values
+          alpstp = alpStpVal
+          alpstrt = alpStrtVal
+          max = maxVal
+          min = minVal
+          nalp = nAlpVal
+          nthet = nThetVal
+          thstart = thStepVal
+          thstep = thStepVal
+          
+c     Alert the user of the program's progress
+          print *, "The initial values for r and theta are:", alpstrt,
+     +"and " , thstart
+          print *, "The program will take", nthet, " steps."
+          print *, "Each step in theta will be", thstep, " radians."
+          print *, "The program will take", nalp, " steps."
+          print *, "Each step in r will be", alpstp, " au."
+          print *, "The range for the real part of the energy is from",
+     +min, "to ", max, "."
+      end
+      
+cc
+c     Written by: Dr. Michael Falcetta
+c
+c     Begin processing the data...
+c
+c     PRECONDITION:  setFinalParams() has been called.
+c     POSTCONDITION: The program will begin its calculations.
+c     
+c     @access public
+c     @return void
+c     @since  1.0.0
+c
+      
+      subroutine go()
+c     Import variables and arrays from "static" memory
+      integer maxbas, maxnuc
+      parameter (maxstp=500)
+      parameter (maxbas=100)
+      parameter (maxbs3=300)
+      parameter (maxnuc=20)
+      
+      integer nbasis
+      common /basis_static/ nbasis
+      
+      integer l(maxbas), m(maxbas), n(maxbas)
+      double precision alpha(maxbas), x(maxbas), y(maxbas), z(maxbas)
+      common /basis_coord_static/ alpha, l, m, n, x, y, z
+      
+      integer nnuc
+      common /nucleus_static/ nnuc
+      
+      double precision nchg(maxnuc), nx(maxnuc), ny(maxnuc), nz(maxnuc)
+      common /nucleus_coord_static/ nchg, nx, ny, nz
+      
+      integer max, min, nalp, nthet
+      double precision alpstp, alpstrt, thstart, thstep
+      common /param_static/ alpstp, alpstrt, max, min, nalp, nthet,
+     +thstart, thstep
+      
+c     Continue with the calculations...
+      double precision PI,t1,t2,t3,t4,norm(maxbas),fact2
       double precision ovrlp,r1
       double precision kenergy
 
-      double precision     smat(maxbas,maxbas),
-     + rr1,rr2,alpreal,theta,alpstrt,
-     + thstart,thstep,svec(maxbas),
-     + aux(maxbs3),rwork(maxbs3),alpstp,
+      double precision smat(maxbas,maxbas),
+     + rr1,rr2,alpreal,theta,svec(maxbas),
+     + aux(maxbs3),rwork(maxbs3),
      + dermag,dermin,ang(maxstp),angmin
-
 
       double complex scale,vint(maxbas,maxbas),
      + tint(maxbas,maxbas),xmatx(maxbas,maxbas),
@@ -38,64 +390,15 @@ c     **** uses standard intgral formulas for gto's
      + work(maxbs3),venergy,c6,eta(maxstp),
      + val(maxstp),deriv(maxstp),etamin,valmin
 
-      integer l(maxbas), m(maxbas), n(maxbas),
-     + nbasis,nnuc,nthet,naux,info,kk,nalp
-
-      character*80 title
+      integer naux,info,kk
 
       PI=dacos(-1.0d+00)
-c      write(6,*)PI
 
       scale = 1.0d+00
       XX1=(1.0d+00,0.0d+00)
       XX2=(0.0d+00,0.0d+00)
-
-c     read input
- 
-      read(5,*)title
-      write(6,*)title
-
-      read(5,*)nbasis
-      write(6,*) 'there are  ',nbasis,'  basis functions'
-
-c     note: all coordinates are read in in angstroms and then converted to au before printing
-
-      do 10 i = 1, nbasis
-           read(5,*)l(i),m(i),n(i),x(i),y(i),z(i),alpha(i)
-           x(i) = x(i)/0.529177249
-           y(i) = y(i)/0.529177249
-           z(i) = z(i)/0.529177249
-           write(6,*)l(i),m(i),n(i),x(i),y(i),z(i),alpha(i)
-10    continue
-
-      read(5,*)nnuc
-      write(6,*)'there are  ',nnuc,'  nuclei.'
-
-
-      do 20 i = 1,nnuc
-           read(5,*)nx(i),ny(i),nz(i),nchg(i)
-           nx(i) = nx(i)/0.529177249
-           ny(i) = ny(i)/0.529177249
-           nz(i) = nz(i)/0.529177249
-           write(6,*)nx(i),ny(i),nz(i),nchg(i)
-20    continue
-
-      read(5,*)nthet,nalp,alpstrt,alpstp,thstart,thstep
-
-      write(6,*)'the initial values for r and theta are'
-      write(6,*)alpstrt,thstart
-
-      write(6,*)'the program will take ',nthet,' steps'
-      write(6,*)'each step in theta will be ',thstep,' radians'
-      write(6,*)'the program will take ',nalp,' steps'
-      write(6,*)'each step in r will be ',alpstp,' au'
-
-
-      read(5,*)min,max
-      write(6,*) 'the range for the real part of the energy is' 
-      write(6,*)'from ',min,' to ',max
-
-c     calculate normalization constants
+      
+c     Calculate normalization constants
 
       do 30 i = 1,nbasis
            t1 = 2**(l(i)+m(i)+n(i))
@@ -105,7 +408,6 @@ c     calculate normalization constants
            t4 = fact2(2*l(i)-1)*fact2(2*m(i)-1)*fact2(2*n(i)-1)
            t4= dsqrt(t4)
            norm(i) = t1*t2*t3/t4
-c          write(6,*)norm(i)
 30    continue
 
       do 11 ir=1,nbasis
@@ -201,23 +503,29 @@ c         write(6,*)xmat(ir,jc),xmatx(ir,jc)
       call zgeev('V','V',nbasis,core,maxbas,eigval,VL,maxbas,
      +   VR,maxbas,work,maxbs3,rwork,info)
 
-      call zgemm('N','N',nbasis,nbasis,nbasis,XX1,xmat,maxbas,
-     +   VR,maxbas,XX2,xtmp,maxbas)
-
       do 86 iii = 1,nbasis
             eigval(iii)=(27.2114d+00,0.0d+00)*eigval(iii)
             ctest=dreal(eigval(iii))
             if ((ctest.ge.min).and.(ctest.le.max)) then
-            write(6,*)eigval(iii)
-            do 89 ijkr=1,nbasis
-               write(6,*)xtmp(ijkr,iii)
-89          continue
+c           write(6,*)alpreal,theta,scale,eigval(iii)
             eta(nscan)=scale
             val(nscan)=eigval(iii)
             ang(nscan)=theta
             endif
 86    continue
 
+c     call zgemm('N','N',nbasis,nbasis,nbasis,XX1,VR,maxbas,
+c    +   xmatx,maxbas,XX2,xtmp,maxbas)
+
+c     call zgemm('N','N',nbasis,nbasis,nbasis,XX1,xmat,maxbas,
+c    +   xtmp,maxbas,XX2,VR,maxbas)
+
+c     do 88 jc =1,nbasis
+c        do 89 ir = 1,nbasis
+c           write(6,*)ir,jc,VR(ir,jc)
+c89       continue
+c88    continue
+      
       
       theta=theta+thstep
 
@@ -238,7 +546,7 @@ c         write(6,*)xmat(ir,jc),xmatx(ir,jc)
           endif
 999   continue
 
-c     write(6,*)alpreal,angmin,etamin,valmin,dermin
+      write(6,*)alpreal,angmin,etamin,valmin,dermin
 
       alpreal=alpreal+alpstp
 
@@ -246,7 +554,10 @@ c     write(6,*)alpreal,angmin,etamin,valmin,dermin
       stop
       end
 
-
+cc
+c     Function library, original by Dr. Michael Falcetta
+c     ------------------------------------------------------------------
+c
 
       double precision FUNCTION fact2(n)
 C     double factorial function
@@ -484,7 +795,7 @@ c555   continue
                      r3 = dsqrt(dreal(c2 * dconjg(c2)))
                      if(dabs(r3).lt.(1.0d-17))c3=(1.0d-17,0.0)
                      c3=gtest(r2,c2)        
-                     sum =sum+dcmplx(r1,0.0d+00)*c3                       
+                     sum =sum+dcmplx(r1,0.0d+00)*c3 
 c     write(6,*)Ax(i+1),Ay(j+1),Az(k+1)
 c     write(6,*)'i,j,k,sum ',i,j,k,sum,c3,r4
 
@@ -575,7 +886,7 @@ c     write(6,*)'sumnrm',sumnrm
               r1=a+dfloat(n)
               c1 = dcmplx(r1,0.0d+00)
               q = fct(n)
-              r2=dreal(q)
+              r2=dfloat(q)
               c2=dcmplx(r2,0.0d+00)
               c3=-x
               sum = sum + (c3)**n/(c1*c2)

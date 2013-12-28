@@ -1,0 +1,17 @@
+ There are 5 basis functions.
+ Assigned the coordinates for nbasis value: 1
+ Assigned the coordinates for nbasis value: 2
+ Assigned the coordinates for nbasis value: 3
+ Assigned the coordinates for nbasis value: 4
+ Assigned the coordinates for nbasis value: 5
+ There are 3 nuclei.
+ Assigned the coordinates for nnuc value: 1
+ Assigned the coordinates for nnuc value: 2
+ Assigned the coordinates for nnuc value: 3
+ The initial values for r and theta are:  1.and   0.
+ The program will take 1 steps.
+ Each step in theta will be  0. radians.
+ The program will take 1 steps.
+ Each step in r will be  0. au.
+ The range for the real part of the energy is from -100to  1000000.
+  1.  0. (0.,0.) (0.,0.)  1.

@@ -12,56 +12,51 @@ CXXFLAGS = -g -Wall  -Wno-deprecated
 CC = gcc
 CFLAGS = -g -Wall
 
-FC = gfortran
+FC =gfortran
 FFLAGS = -g -Wall -O -c 
 
-LDFLAGS = -L. 
-LIBS = -llapack -lblas 
+#LDFLAGS = -L. -L
 
-DDIR  = $(HOME)/grid/drudemodel
+LIBS =  -llapack -lblas
+
 
 #
 #  object lists
 #
 
-OBJ = 	test1.o      \
+OBJ = 	main.o  
 
 all	: ptchg
 
 ptchg	: $(OBJ) 
-	$(CXX) -o $@ $(OBJ)  $(LDFLAGS) $(LIBS)
-
-SWC = swcap.o
-
-swcap   : $(SWC)
-	$(CXX) -o $@ $(SWC) smyeig.o wqromb.o sqromb.o  $(LDFLAGS) $(LIBS)
+	$(FC) -o $@ $(OBJ)  $(LDFLAGS) $(LIBS)
 
 
-SWV = swave.o
+DXY = 	dxyptq.o    
 
-swave   : $(SWV)
-	$(CXX) -o $@ $(SWV) smyeig.o sqromb.o  $(LDFLAGS) $(LIBS)
+dxy   : $(DXY) 
+	$(FC) -o $@ $(DXY)  $(LDFLAGS) $(LIBS)
 
-SWT = swstab.o
+PTQ = 	ptq.o    
 
-swstab   : $(SWT)
-	$(CXX) -o $@ $(SWT) sqromb.o  $(LDFLAGS) $(LIBS)
+ptq   : $(PTQ) 
+	$(FC) -o $@ $(PTQ)  $(LDFLAGS) $(LIBS)
 
-MOD = model.o
+PLT = 	plot.o    
 
-model   : $(MOD)
-	$(CXX) -o $@ $(MOD) myeig.o qromb.o  $(LDFLAGS) $(LIBS)
+plot   : $(PLT) 
+	$(FC) -o $@ $(PLT)  $(LDFLAGS) $(LIBS)
 
-CAP = cap.o
+XCL = 	exclude.o    
 
-cap     : $(CAP)
-	$(CXX) -o $@ $(CAP) myeig.o  $(LDFLAGS) $(LIBS)
+exclude  : $(XCL) 
+	$(FC) -o $@ $(XCL)  $(LDFLAGS) $(LIBS)
 
-MYEIG = myeig.o
 
-myeig   : $(MYEIG)
-#	$(FC)  $(MYEIG) 
+SRR = 	search.o  
 
+search : $(SRR) 
+	$(FC) -o $@ $(SRR)  $(LDFLAGS) $(LIBS)
 
 clean	:
 	rm *.o *~
@@ -69,20 +64,4 @@ clean	:
 
 
 
-
-#
-#  dependencies on header files
-#
-
-dvr3d.o	: fulldiag.h larnoldi.h maxdim.h setupdvr.h tsin.h 
-
-fulldiag.o	: constants.h maxdim.h fortran.h
-
-ho_dvr.o	: fortran.h
-
-larnoldi.o	: constants.h fortran.h mtx.h tsin.h writewfcuts.h
-
-mtx.o	: fortran.h maxdim.h
-
-setupdvr.o : cm_dvr.h ho_dvr.h potentials.h sine_dvr.h tsin.h 
 
