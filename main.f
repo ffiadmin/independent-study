@@ -264,9 +264,9 @@ c     Assign the nnuc index its respective values
           nz(idx) = nzVal
           
 c     Convert the coordinates from angstroms to au
-          nx(i) = nx(i)/0.529177249
-          ny(i) = ny(i)/0.529177249
-          nz(i) = nz(i)/0.529177249
+          nx(idx) = nx(idx)/0.529177249
+          ny(idx) = ny(idx)/0.529177249
+          nz(idx) = nz(idx)/0.529177249
           
 c     Alert the user of the program's progress
           print *, "Assigned the coordinates for nnuc value:", idx
@@ -319,7 +319,7 @@ c     Assign the program parameters their respective values
           min = minVal
           nalp = nAlpVal
           nthet = nThetVal
-          thstart = thStepVal
+          thstart = thStartVal
           thstep = thStepVal
           
 c     Alert the user of the program's progress
