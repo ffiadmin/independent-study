@@ -294,8 +294,8 @@ c     @param  double precision alpStrtVal
 c     @param  double precision alpStpVal
 c     @param  double precision thStartVal
 c     @param  double precision thStepVal
-c     @param  integer          minVal
-c     @param  integer          maxVal
+c     @param  double precision minVal
+c     @param  double precision maxVal
 c     @return void
 c     @since  1.0.0
 c
@@ -368,8 +368,8 @@ c     Import variables and arrays from "static" memory
       double precision nchg(maxnuc), nx(maxnuc), ny(maxnuc), nz(maxnuc)
       common /nucleus_coord_static/ nchg, nx, ny, nz
       
-      integer max, min, nalp, nthet
-      double precision alpstp, alpstrt, thstart, thstep
+      integer nalp, nthet
+      double precision alpstp, alpstrt, max, min, thstart, thstep
       common /param_static/ alpstp, alpstrt, max, min, nalp, nthet,
      +thstart, thstep
       
