@@ -32,40 +32,40 @@ cc
 c     Initialization
 c     ---------------------------------
 c
-     
-      call setNBasis(5)
-
+    
+c     call setNBasis(5)
+c
 c     In real life, call this function in a loop
 c     do 10 i = 1, nbasis
 c          call setBasisCoords(i, 1, 2, 3, 4.0D0, 5.0D0, 6.0D0, 7.0D0)
 c10   continue
-
-      call setBasisCoords(1, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
-     +0.190236205409D2)
-      call setBasisCoords(2, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
-     +0.100124318636D2)
-      call setBasisCoords(3, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
-     +0.526970098087D1)
-      call setBasisCoords(4, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
-     +0.277352683204D1)
-      call setBasisCoords(5, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
-     +0.145975096423D1)
-      
-      call setNNuc(3)
-
+c
+c     call setBasisCoords(1, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
+c    +0.190236205409D2)
+c     call setBasisCoords(2, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
+c    +0.100124318636D2)
+c     call setBasisCoords(3, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
+c    +0.526970098087D1)
+c     call setBasisCoords(4, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
+c    +0.277352683204D1)
+c     call setBasisCoords(5, 0, 0, 0, 0.0D0, 0.0D0, 0.0D0,
+c    +0.145975096423D1)
+c     
+c     call setNNuc(3)
+c
 c     In real life, call this function in a loop
 c     do 20 i = 1,nnuc
 c          call setNucleusCoords(i, 1.0D0, 2.0D0, 3.0D0, 4.0D0)
 c20   continue
-
-      call setNucleusCoords(1, 0.0D0, 0.0D0, 0.0D0, 2.0D0)
-      call setNucleusCoords(2, 0.0D0, 0.0D0, 0.4120D0, -1.0D0)
-      call setNucleusCoords(3, 0.0D0, 0.0D0, -0.4120D0, -1.0D0)
-      
-      call setFinalParams(1, 1, 1.000D0, 0.00D0, 0.000D0, 0.00D0, 
-     + -100.0D0, 1000000.0D0)
-     
-      call go()
+c
+c     call setNucleusCoords(1, 0.0D0, 0.0D0, 0.0D0, 2.0D0)
+c     call setNucleusCoords(2, 0.0D0, 0.0D0, 0.4120D0, -1.0D0)
+c     call setNucleusCoords(3, 0.0D0, 0.0D0, -0.4120D0, -1.0D0)
+c      
+c     call setFinalParams(1, 1, 1.000D0, 0.00D0, 0.000D0, 0.00D0, 
+c    + -100.0D0, 1000000D0)
+c    
+c     call go()
       stop
       end
       
