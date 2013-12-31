@@ -63,7 +63,7 @@ c20   continue
       call setNucleusCoords(3, 0.0D0, 0.0D0, -0.4120D0, -1.0D0)
       
       call setFinalParams(1, 1, 1.000D0, 0.00D0, 0.000D0, 0.00D0, 
-     + -100, 1000000)
+     + -100.0D0, 1000000.0D0)
      
       call go()
       stop
