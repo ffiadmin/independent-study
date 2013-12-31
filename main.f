@@ -23,8 +23,8 @@ c     Assign the "nnuc" coordinate variable to "static" memory
       common /nucleus_coord_static/ nchg, nx, ny, nz
       
 c     Assign additional program parameters to "static" memory
-      integer max, min, nalp, nthet
-      double precision alpstp, alpstrt, thstart, thstep
+      integer nalp, nthet
+      double precision alpstp, alpstrt, max, min, thstart, thstep
       common /param_static/ alpstp, alpstrt, max, min, nalp, nthet,
      +thstart, thstep
      
@@ -303,14 +303,15 @@ c
       subroutine setFinalParams(nThetVal, nAlpVal, alpStrtVal, 
      +alpStpVal, thStartVal, thStepVal, minVal, maxVal)
 c     Import variables from "static" memory
-          integer max, min, nalp, nthet
-          double precision alpstp, alpstrt, thstart, thstep
+          integer nalp, nthet
+          double precision alpstp, alpstrt, max, min, thstart, thstep
           common /param_static/ alpstp, alpstrt, max, min, nalp, nthet,
      +thstart, thstep
           
 c     Assign the subroutine parameters a type
-          integer maxVal, minVal, nAlpVal, nThetVal
-          double precision alpStpVal, alpStrtVal, thStartVal, thStepVal
+          integer nAlpVal, nThetVal
+          double precision alpStpVal, alpStrtVal, maxVal, minVal,
+     +thStartVal, thStepVal
           
 c     Assign the program parameters their respective values
           alpstp = alpStpVal
