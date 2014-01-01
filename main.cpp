@@ -70,7 +70,7 @@ public :
 	vector<Basis*>::iterator basisBegin() {return basisSets.begin();}
 	vector<Basis*>::iterator basisEnd() {return basisSets.end();}
 	vector<Nuclei*>::iterator nucleiBegin() {return nucleiSet.begin();}
-	vector<Nuclei*>::iterator nucleiEnd() {return nucleiSet.begin();}	
+	vector<Nuclei*>::iterator nucleiEnd() {return nucleiSet.end();}	
 
 private : 
 	//File streams
@@ -206,7 +206,7 @@ extern "C"
 
 int main(int argc, char *argv[])
 {	
-	if (argc < 3)
+	if (argc != 3)
 	{
 		cout << "Invalid number of arguments\n"
 				<< "<executable> <input filename> <\"real\" OR \"complex\">\n"; 
@@ -248,6 +248,7 @@ void runFortran(InputParser& data, int thetaCount, double thetaStart)
 	index = 1;
 	for (vector<Nuclei*>::iterator it = data.nucleiBegin(); it < data.nucleiEnd(); ++it)
 	{
+
 		FORTRANNAME(setnucleuscoords)(&index, &(*it)->nx, &(*it)->ny, &(*it)->nz, &(*it)->nchg);  
 		index++;
 	}
