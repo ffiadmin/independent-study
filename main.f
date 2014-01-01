@@ -313,7 +313,7 @@ c     @return void
 c     @since  1.0.0
 c
       
-      subroutine go()
+      subroutine go()   
 c     Import variables and arrays from "static" memory
       integer maxbas, maxnuc
       parameter (maxstp=500)
@@ -338,6 +338,9 @@ c     Import variables and arrays from "static" memory
       double precision alpstp, alpstrt, max, min, thstart, thstep
       common /param_static/ alpstp, alpstrt, max, min, nalp, nthet,
      +thstart, thstep
+     
+c     Assign the subroutine parameters a type
+c     character*80 outputTo
       
 c     Continue with the calculations...
       double precision PI,t1,t2,t3,t4,norm(maxbas),fact2
@@ -513,12 +516,15 @@ c88    continue
           endif
 999   continue
 
-      write(6,*)alpreal,angmin,etamin,valmin,dermin
+      write(720,*)alpreal,angmin,etamin,valmin,dermin
 
       alpreal=alpreal+alpstp
 
 888   continue          
       stop
+      
+c     Open the file stream
+      open(720, file='FILENAME.TXT', status='replace')
       end
 
 cc
@@ -1008,3 +1014,4 @@ c
       dnrm=dabs(dreal(z))+dabs(dimag(z))
       return
       end
+
